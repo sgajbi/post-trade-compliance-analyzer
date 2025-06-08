@@ -8,6 +8,8 @@ from db.mongo import portfolio_collection
 from datetime import datetime
 from fastapi import HTTPException
 from bson import ObjectId
+from rag_service import ingest_portfolio_analysis
+from rag_service import query_portfolio
 
 
 
@@ -53,6 +55,10 @@ async def upload_portfolio(file: UploadFile = File(...)):
     risk_drifts = RiskDriftAgent(positions).run()
     report = BreachReporterAgent(policy_violations, risk_drifts).generate_report()
 
+    # Ingest into vector DB
+    ingest_portfolio_analysis(portfolio.get("portfolio_id"), json.dumps(report, indent=2))
+
+
     # === Store in DB ===
     portfolio_record = {
         "client_id": portfolio.get("client_id"),
@@ -89,3 +95,12 @@ async def get_portfolio(id: str):
         return serialize_portfolio_detail(portfolio)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid ID format")
+
+
+@app.post("/ask/{portfolio_id}")
+async def ask_question(portfolio_id: str, question: str):
+    try:
+        answer = query_portfolio(portfolio_id, question)
+        return {"answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
