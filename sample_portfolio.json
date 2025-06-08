@@ -1,0 +1,41 @@
+{
+  "client_id": "CIF123456",
+  "portfolio_id": "PORT-001",
+  "date": "2025-06-06",
+  "positions": [
+    {
+      "isin": "US0378331005",
+      "symbol": "AAPL",
+      "quantity": 100,
+      "avg_price": 150.0,
+      "market_price": 170.0,
+      "sector": "Technology"
+    },
+    {
+      "isin": "US0231351067",
+      "symbol": "AMZN",
+      "quantity": 50,
+      "avg_price": 3100.0,
+      "market_price": 3250.0,
+      "sector": "Consumer Discretionary"
+    }
+  ],
+  "trades": [
+    {
+      "trade_id": "T123",
+      "symbol": "AAPL",
+      "quantity": 100,
+      "price": 150.0,
+      "trade_date": "2025-06-06",
+      "type": "BUY"
+    },
+    {
+      "trade_id": "T124",
+      "symbol": "AMZN",
+      "quantity": 50,
+      "price": 3100.0,
+      "trade_date": "2025-06-06",
+      "type": "BUY"
+    }
+  ]
+}
