@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from agents.policy_validator import PolicyValidatorAgent
 from agents.risk_drift import RiskDriftAgent
 from agents.breach_reporter import BreachReporterAgent
+from db.mongo import portfolio_collection
+from datetime import datetime
+
 
 app = FastAPI()
 
@@ -25,21 +28,29 @@ async def upload_portfolio(file: UploadFile = File(...)):
     contents = await file.read()
     decoded = contents.decode("utf-8")
     portfolio = json.loads(decoded)
+
     positions = portfolio.get("positions", [])
 
-    # Agent 1
-    policy_agent = PolicyValidatorAgent(positions)
-    policy_violations = policy_agent.run()
+    # === Agents ===
+    policy_violations = PolicyValidatorAgent(positions).run()
+    risk_drifts = RiskDriftAgent(positions).run()
+    report = BreachReporterAgent(policy_violations, risk_drifts).generate_report()
 
-    # Agent 2
-    drift_agent = RiskDriftAgent(positions)
-    risk_drifts = drift_agent.run()
+    # === Store in DB ===
+    portfolio_record = {
+        "client_id": portfolio.get("client_id"),
+        "portfolio_id": portfolio.get("portfolio_id"),
+        "date": portfolio.get("date", datetime.utcnow().isoformat()),
+        "positions": positions,
+        "trades": portfolio.get("trades", []),
+        "analysis": report,
+        "uploaded_at": datetime.utcnow()
+    }
 
-    # Agent 3
-    reporter = BreachReporterAgent(policy_violations, risk_drifts)
-    report = reporter.generate_report()
+    await portfolio_collection.insert_one(portfolio_record)
 
     return {
         "filename": file.filename,
-        "analysis": report
+        "analysis": report,
+        "status": "saved_to_db"
     }
