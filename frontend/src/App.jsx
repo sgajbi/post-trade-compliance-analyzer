@@ -19,6 +19,10 @@ function App() {
 
       const data = await res.json();
       setPreview(data.preview);
+      setPreview(
+        `Policy Violations:\n${data.analysis.policy_violations.join('\n') || 'None'}\n\n` +
+        `Risk Drift Alerts:\n${data.analysis.risk_drifts.join('\n') || 'None'}`
+      );
     } catch (err) {
       console.error('Upload failed:', err);
     }
