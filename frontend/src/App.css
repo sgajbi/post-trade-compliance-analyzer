@@ -1,42 +1,238 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+/* Color Palette */
+:root {
+  --primary-blue: #007bff;
+  --primary-blue-dark: #0056b3;
+  --secondary-gray: #6c757d;
+  --light-gray: #f8f9fa;
+  --medium-gray: #e9ecef;
+  --dark-gray: #343a40;
+  --success-green: #28a745;
+  --danger-red: #dc3545;
+  --border-color: #ced4da;
+  --box-shadow-color: rgba(0, 0, 0, 0.08);
+}
+
+/* --- Crucial additions for Centering the Entire UI --- */
+html,
+body {
+  margin: 0; /* Remove default browser margins */
+  padding: 0; /* Remove default browser padding */
+  width: 100%; /* Ensure they span full width */
+  min-height: 100vh; /* Ensure body takes at least full viewport height */
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--light-gray); /* Soft background for the whole page */
+  display: flex; /* Use flexbox to center the content */
+  justify-content: center; /* Horizontally center the content within the body */
+  /* align-items: center;  <-- Uncomment this if you want vertical centering as well */
+  /* flex-direction: column; if align-items: center is used for vertical centering */
+}
+/* --- End of Centering Additions --- */
+
+.app-container {
   text-align: center;
+  margin: 40px auto; /* Allows vertical margin, and auto for horizontal centering when parent is flex */
+  max-width: 900px; /* Increased max-width for more content space */
+  width: 100%; /* Ensure it respects max-width and is flexible */
+  padding: 2.5rem 3rem; /* More generous padding */
+  border-radius: 12px;
+  background: #ffffff; /* Pure white background for content area */
+  box-shadow: 0 4px 20px var(--box-shadow-color); /* More pronounced shadow */
+  transition: all 0.3s ease-in-out; /* Smooth transitions for any dynamic changes */
+  flex-shrink: 0; /* Prevent the container from shrinking below its content size in flex context */
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.app-container:hover {
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.12); /* Subtle hover effect */
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+h1 {
+  color: var(--dark-gray);
+  margin-bottom: 2rem;
+  font-size: 2.2rem; /* Larger heading */
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+h1::before {
+  content: "📊"; /* Icon for the main heading */
+  margin-right: 15px;
+  font-size: 2.5rem;
 }
 
-.card {
-  padding: 2em;
+h3 {
+  color: var(--primary-blue);
+  font-size: 1.4rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1.2rem;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--medium-gray); /* Subtle separator */
+  text-align: left;
+  display: flex;
+  align-items: center;
 }
 
-.read-the-docs {
-  color: #888;
+h3.upload-title::before {
+  content: "📤";
+  margin-right: 10px;
+}
+h3.preview-title::before {
+  content: "📋";
+  margin-right: 10px;
+}
+h3.violations-title::before {
+  content: "🚨";
+  margin-right: 10px;
+}
+h3.drifts-title::before {
+  content: "📉";
+  margin-right: 10px;
+}
+h3.chat-title::before {
+  content: "💬";
+  margin-right: 10px;
+}
+
+.upload-section,
+.chat-section {
+  margin-top: 30px; /* Increased margin */
+  padding-top: 20px;
+  border-top: 1px dashed var(--medium-gray); /* Visual separation */
+}
+
+/* File Input and Button Styling */
+input[type="file"] {
+  display: block; /* Stack input and button on new lines */
+  margin: 15px auto 10px;
+  padding: 8px; /* Added padding for better click area */
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+button {
+  padding: 10px 22px; /* Increased padding */
+  margin: 10px;
+  background-color: var(--primary-blue);
+  color: white;
+  border: none;
+  border-radius: 8px; /* Softer border-radius */
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+  background-color: var(--primary-blue-dark);
+  transform: translateY(-1px); /* Slight lift effect */
+}
+
+button:disabled {
+  background-color: var(--secondary-gray);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Preview and Result Sections */
+.preview-box,
+.result-section {
+  margin-top: 25px;
+  padding: 20px 25px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--light-gray); /* Light background for content boxes */
+  text-align: left;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); /* Subtle inner shadow */
+}
+
+.preview-box p {
+  margin: 5px 0;
+  color: var(--dark-gray);
+}
+
+.result-section ul {
+  list-style-type: none; /* Remove default bullets */
+  padding: 0;
+  margin: 0;
+}
+
+.result-section ul li {
+  background-color: #ffffff; /* White background for list items */
+  border: 1px solid var(--medium-gray);
+  border-radius: 5px;
+  padding: 12px 15px;
+  margin-bottom: 10px; /* Space between list items */
+  color: var(--dark-gray);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.result-section ul li:last-child {
+  margin-bottom: 0; /* No margin for the last item */
+}
+
+.result-section ul li.success {
+  background-color: #e6ffed; /* Light green for success */
+  border-color: var(--success-green);
+  color: var(--success-green);
+  font-weight: 600;
+}
+
+/* Chat Section */
+.chat-section input[type="text"] {
+  width: calc(60% - 20px); /* Adjust width to account for padding */
+  max-width: 450px; /* Max width for input */
+  padding: 10px;
+  margin-top: 15px;
+  margin-right: 10px; /* Space between input and button */
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-section input[type="text"]:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Focus highlight */
+  outline: none;
+}
+
+.chat-answer {
+  margin-top: 20px;
+  padding: 15px 20px;
+  background-color: #e7f5ff; /* Light blue background for answer */
+  border: 1px solid #b3d9ff;
+  border-radius: 8px;
+  font-weight: 500;
+  color: var(--dark-gray);
+  text-align: left;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+}
+
+/* Messages */
+.error-message {
+  color: var(--danger-red);
+  margin-top: 15px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 10px;
+  background-color: #fdd;
+  border: 1px solid #fbc;
+  border-radius: 5px;
+}
+
+.loading-message {
+  color: var(--primary-blue);
+  margin-top: 15px;
+  font-weight: 600;
+  font-size: 0.95rem;
 }
