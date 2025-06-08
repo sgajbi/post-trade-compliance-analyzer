@@ -6,6 +6,9 @@ from agents.risk_drift import RiskDriftAgent
 from agents.breach_reporter import BreachReporterAgent
 from db.mongo import portfolio_collection
 from datetime import datetime
+from fastapi import HTTPException
+from bson import ObjectId
+
 
 
 app = FastAPI()
@@ -18,6 +21,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def serialize_portfolio_summary(portfolio):
+    return {
+        "id": str(portfolio["_id"]),
+        "client_id": portfolio.get("client_id"),
+        "portfolio_id": portfolio.get("portfolio_id"),
+        "date": portfolio.get("date"),
+        "uploaded_at": portfolio.get("uploaded_at")
+    }
+
+def serialize_portfolio_detail(portfolio):
+    portfolio["id"] = str(portfolio["_id"])
+    del portfolio["_id"]
+    return portfolio
 
 @app.get("/")
 def read_root():
@@ -54,3 +71,21 @@ async def upload_portfolio(file: UploadFile = File(...)):
         "analysis": report,
         "status": "saved_to_db"
     }
+
+@app.get("/portfolios")
+async def get_all_portfolios():
+    cursor = portfolio_collection.find().sort("uploaded_at", -1)
+    portfolios = []
+    async for portfolio in cursor:
+        portfolios.append(serialize_portfolio_summary(portfolio))
+    return portfolios
+
+@app.get("/portfolio/{id}")
+async def get_portfolio(id: str):
+    try:
+        portfolio = await portfolio_collection.find_one({"_id": ObjectId(id)})
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+        return serialize_portfolio_detail(portfolio)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
