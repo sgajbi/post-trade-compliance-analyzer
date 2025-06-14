@@ -1,0 +1,50 @@
+[
+  {
+    "client_id": "CLIENT001",
+    "name": "Acme Investments Ltd.",
+    "portfolios": [
+      {
+        "portfolio_id": "PORT-001",
+        "name": "Growth Fund 2025",
+        "risk_profile": "Aggressive",
+        "currency": "USD"
+      },
+      {
+        "portfolio_id": "PORT-002",
+        "name": "Balanced Portfolio Q3",
+        "risk_profile": "Moderate",
+        "currency": "EUR"
+      }
+    ]
+  },
+  {
+    "client_id": "CLIENT002",
+    "name": "Global Wealth Partners",
+    "portfolios": [
+      {
+        "portfolio_id": "PORT-003",
+        "name": "Tech Sector Focus",
+        "risk_profile": "Aggressive",
+        "currency": "USD"
+      },
+      {
+        "portfolio_id": "PORT-004",
+        "name": "Emerging Markets Bond",
+        "risk_profile": "Conservative",
+        "currency": "GBP"
+      }
+    ]
+  },
+  {
+    "client_id": "CLIENT003",
+    "name": "Innovation Capital",
+    "portfolios": [
+      {
+        "portfolio_id": "PORT-005",
+        "name": "Sustainable Futures",
+        "risk_profile": "Moderate",
+        "currency": "USD"
+      }
+    ]
+  }
+]

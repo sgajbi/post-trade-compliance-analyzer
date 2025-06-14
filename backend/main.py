@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from agents.policy_validator import PolicyValidatorAgent
 from agents.risk_drift import RiskDriftAgent
 from agents.breach_reporter import BreachReporterAgent
-from db.mongo import portfolio_collection 
+from db.mongo import portfolio_collection
+import os # <-- Ensure this is imported
 
 from rag_service import ingest_portfolio_analysis
 from rag_service import query_portfolio
@@ -20,7 +21,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # Consider restricting this in production, e.g., ["http://localhost:3000"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,6 +31,7 @@ def serialize_portfolio_summary(portfolio):
     """
     Serializes a portfolio document for summary display, converting ObjectId to str.
     """
+    # Defensive programming: ensure portfolio is a dict before accessing keys
     if not isinstance(portfolio, dict):
         logger.error(f"Expected dict for serialization, got {type(portfolio)}")
         return None
@@ -45,12 +47,15 @@ def serialize_portfolio_detail(portfolio):
     """
     Serializes a detailed portfolio document, converting ObjectId to str and removing original _id.
     """
+    # Defensive programming: ensure portfolio is a dict before copying
     if not isinstance(portfolio, dict):
         logger.error(f"Expected dict for serialization, got {type(portfolio)}")
         return None
     portfolio_copy = portfolio.copy()
-    portfolio_copy["id"] = str(portfolio_copy["_id"])
-    del portfolio_copy["_id"]
+    # Check if _id exists before trying to convert/delete
+    if "_id" in portfolio_copy:
+        portfolio_copy["id"] = str(portfolio_copy["_id"])
+        del portfolio_copy["_id"]
     return portfolio_copy
 
 @app.get("/")
@@ -59,6 +64,56 @@ def read_root():
     Root endpoint to confirm the backend is running.
     """
     return {"message": "Post-Trade Compliance Analyzer backend is running"}
+
+@app.get("/product-shelf")
+async def get_product_shelf():
+    """
+    Retrieves a list of available investment products (stocks) from a static JSON file.
+    """
+    logger.info("Fetching product shelf data...")
+    try:
+        current_dir = os.path.dirname(__file__)
+        file_path = os.path.join(current_dir, 'data', 'product_shelf.json')
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            product_data = json.load(f)
+        logger.info(f"Successfully loaded {len(product_data)} items from product shelf.")
+        return product_data
+    except FileNotFoundError:
+        logger.error(f"Product shelf file not found at {file_path}")
+        raise HTTPException(status_code=404, detail="Product shelf data not found.")
+    except json.JSONDecodeError as e:
+        logger.error(f"Error decoding product shelf JSON: {e}")
+        raise HTTPException(status_code=500, detail=f"Error reading product shelf data: {e}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while fetching product shelf: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+
+# --- NEW ENDPOINT: Get Clients and their Portfolios ---
+@app.get("/clients")
+async def get_clients():
+    """
+    Retrieves a static list of clients and their associated portfolios from a JSON file.
+    """
+    logger.info("Fetching clients data...")
+    try:
+        current_dir = os.path.dirname(__file__)
+        file_path = os.path.join(current_dir, 'data', 'clients.json')
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            clients_data = json.load(f)
+        logger.info(f"Successfully loaded {len(clients_data)} clients.")
+        return clients_data
+    except FileNotFoundError:
+        logger.error(f"Clients file not found at {file_path}")
+        raise HTTPException(status_code=404, detail="Clients data not found.")
+    except json.JSONDecodeError as e:
+        logger.error(f"Error decoding clients JSON: {e}")
+        raise HTTPException(status_code=500, detail=f"Error reading clients data: {e}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while fetching clients: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+
 
 @app.post("/upload")
 async def upload_portfolio(file: UploadFile = File(...)):
@@ -120,7 +175,7 @@ async def upload_portfolio(file: UploadFile = File(...)):
         "portfolio_id": portfolio_id,
         "date": portfolio_data.get("date", datetime.utcnow().isoformat()),
         "positions": positions,
-        "trades": portfolio_data.get("trades", []),
+        "trades": portfolio_data.get("trades", []), # Keep existing trades if present
         "analysis": report,
         "uploaded_at": datetime.utcnow()
     }

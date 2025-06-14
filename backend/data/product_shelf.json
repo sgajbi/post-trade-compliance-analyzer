@@ -1,0 +1,74 @@
+[
+  {
+    "isin": "US0378331005",
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "sector": "Technology",
+    "market_price": 175.0,
+    "currency": "USD"
+  },
+  {
+    "isin": "US5949181045",
+    "symbol": "MSFT",
+    "name": "Microsoft Corp.",
+    "sector": "Technology",
+    "market_price": 430.25,
+    "currency": "USD"
+  },
+  {
+    "isin": "US0231351067",
+    "symbol": "AMZN",
+    "name": "Amazon.com Inc.",
+    "sector": "Consumer Discretionary",
+    "market_price": 185.5,
+    "currency": "USD"
+  },
+  {
+    "isin": "US30303M1027",
+    "symbol": "GOOG",
+    "name": "Alphabet Inc. (Class C)",
+    "sector": "Technology",
+    "market_price": 170.1,
+    "currency": "USD"
+  },
+  {
+    "isin": "US88160R1014",
+    "symbol": "TSLA",
+    "name": "Tesla Inc.",
+    "sector": "Automotive",
+    "market_price": 180.7,
+    "currency": "USD"
+  },
+  {
+    "isin": "US46625H1005",
+    "symbol": "JPM",
+    "name": "JPMorgan Chase & Co.",
+    "sector": "Financials",
+    "market_price": 195.8,
+    "currency": "USD"
+  },
+  {
+    "isin": "US7170811035",
+    "symbol": "PFE",
+    "name": "Pfizer Inc.",
+    "sector": "Healthcare",
+    "market_price": 28.15,
+    "currency": "USD"
+  },
+  {
+    "isin": "US30231G1022",
+    "symbol": "XOM",
+    "name": "Exxon Mobil Corp.",
+    "sector": "Energy",
+    "market_price": 110.4,
+    "currency": "USD"
+  },
+  {
+    "isin": "US1912161007",
+    "symbol": "KO",
+    "name": "The Coca-Cola Company",
+    "sector": "Consumer Staples",
+    "market_price": 63.2,
+    "currency": "USD"
+  }
+]

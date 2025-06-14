@@ -236,3 +236,69 @@ button:disabled {
   font-weight: 600;
   font-size: 0.95rem;
 }
+
+.product-shelf-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--medium-gray);
+  text-align: left;
+}
+
+.product-shelf-section h3 {
+  display: flex;
+  align-items: center;
+}
+
+.product-shelf-section h3::before {
+  content: "🛍️";
+  margin-right: 10px;
+}
+
+.product-shelf-section button {
+  margin-bottom: 20px;
+  background-color: var(
+    --success-green
+  ); /* A different color for this button */
+}
+
+.product-shelf-section button:hover {
+  background-color: #218838; /* Darker green on hover */
+}
+
+.product-shelf-section .product-list table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  background-color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  overflow: hidden; /* Ensures rounded corners apply to table content */
+}
+
+.product-shelf-section .product-list th,
+.product-shelf-section .product-list td {
+  border: 1px solid var(--medium-gray);
+  padding: 12px 15px;
+  text-align: left;
+}
+
+.product-shelf-section .product-list th {
+  background-color: var(--primary-blue);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+}
+
+.product-shelf-section .product-list tr:nth-child(even) {
+  background-color: var(--light-gray); /* Zebra striping */
+}
+
+.product-shelf-section .product-list tr:hover {
+  background-color: #f0f0f0; /* Hover effect for rows */
+}
+
+.product-shelf-section .product-list td {
+  color: var(--dark-gray);
+  font-size: 0.95rem;
+}
