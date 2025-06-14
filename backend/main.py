@@ -8,7 +8,9 @@ from agents.policy_validator import PolicyValidatorAgent
 from agents.risk_drift import RiskDriftAgent
 from agents.breach_reporter import BreachReporterAgent
 from db.mongo import portfolio_collection
-import os # <-- Ensure this is imported
+import os  
+from utils.serializers import serialize_portfolio_summary, serialize_portfolio_detail  
+
 
 from rag_service import ingest_portfolio_analysis
 from rag_service import query_portfolio
@@ -26,37 +28,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-def serialize_portfolio_summary(portfolio):
-    """
-    Serializes a portfolio document for summary display, converting ObjectId to str.
-    """
-    # Defensive programming: ensure portfolio is a dict before accessing keys
-    if not isinstance(portfolio, dict):
-        logger.error(f"Expected dict for serialization, got {type(portfolio)}")
-        return None
-    return {
-        "id": str(portfolio.get("_id")),
-        "client_id": portfolio.get("client_id"),
-        "portfolio_id": portfolio.get("portfolio_id"),
-        "date": portfolio.get("date"),
-        "uploaded_at": portfolio.get("uploaded_at")
-    }
-
-def serialize_portfolio_detail(portfolio):
-    """
-    Serializes a detailed portfolio document, converting ObjectId to str and removing original _id.
-    """
-    # Defensive programming: ensure portfolio is a dict before copying
-    if not isinstance(portfolio, dict):
-        logger.error(f"Expected dict for serialization, got {type(portfolio)}")
-        return None
-    portfolio_copy = portfolio.copy()
-    # Check if _id exists before trying to convert/delete
-    if "_id" in portfolio_copy:
-        portfolio_copy["id"] = str(portfolio_copy["_id"])
-        del portfolio_copy["_id"]
-    return portfolio_copy
 
 @app.get("/")
 def read_root():
