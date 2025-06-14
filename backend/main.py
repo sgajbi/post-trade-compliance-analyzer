@@ -10,6 +10,7 @@ from agents.breach_reporter import BreachReporterAgent
 from db.mongo import portfolio_collection
 import os  
 from utils.serializers import serialize_portfolio_summary, serialize_portfolio_detail  
+from routers import static_data
 
 
 from rag_service import ingest_portfolio_analysis
@@ -23,11 +24,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Consider restricting this in production, e.g., ["http://localhost:3000"]
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(static_data.router)
 
 @app.get("/")
 def read_root():
@@ -36,54 +39,6 @@ def read_root():
     """
     return {"message": "Post-Trade Compliance Analyzer backend is running"}
 
-@app.get("/product-shelf")
-async def get_product_shelf():
-    """
-    Retrieves a list of available investment products (stocks) from a static JSON file.
-    """
-    logger.info("Fetching product shelf data...")
-    try:
-        current_dir = os.path.dirname(__file__)
-        file_path = os.path.join(current_dir, 'data', 'product_shelf.json')
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            product_data = json.load(f)
-        logger.info(f"Successfully loaded {len(product_data)} items from product shelf.")
-        return product_data
-    except FileNotFoundError:
-        logger.error(f"Product shelf file not found at {file_path}")
-        raise HTTPException(status_code=404, detail="Product shelf data not found.")
-    except json.JSONDecodeError as e:
-        logger.error(f"Error decoding product shelf JSON: {e}")
-        raise HTTPException(status_code=500, detail=f"Error reading product shelf data: {e}")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while fetching product shelf: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
-
-# --- NEW ENDPOINT: Get Clients and their Portfolios ---
-@app.get("/clients")
-async def get_clients():
-    """
-    Retrieves a static list of clients and their associated portfolios from a JSON file.
-    """
-    logger.info("Fetching clients data...")
-    try:
-        current_dir = os.path.dirname(__file__)
-        file_path = os.path.join(current_dir, 'data', 'clients.json')
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            clients_data = json.load(f)
-        logger.info(f"Successfully loaded {len(clients_data)} clients.")
-        return clients_data
-    except FileNotFoundError:
-        logger.error(f"Clients file not found at {file_path}")
-        raise HTTPException(status_code=404, detail="Clients data not found.")
-    except json.JSONDecodeError as e:
-        logger.error(f"Error decoding clients JSON: {e}")
-        raise HTTPException(status_code=500, detail=f"Error reading clients data: {e}")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred while fetching clients: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
 
 
 @app.post("/upload")
