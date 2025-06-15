@@ -29,6 +29,7 @@ import { HamburgerIcon } from "@chakra-ui/icons";
 // Assuming you have a Dashboard.js file in src/pages/Dashboard/
 // If not, you'll need to create it or adjust this import.
 import Dashboard from "./pages/Dashboard/Dashboard";
+import PortfolioDetail from "./pages/PortfolioDetail/PortfolioDetail";
 
 // You can extend the default Chakra UI theme here for custom colors, fonts, etc.
 // This ensures `extendTheme` is imported and used correctly for Chakra UI 2.5.5
@@ -98,10 +99,10 @@ function App() {
         <Box p={4}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            {/* Placeholder for the Portfolio Detail page - we'll create this next */}
+            {/* This route will now render your PortfolioDetail component */}
             <Route
               path="/portfolio/:clientId/:portfolioId"
-              element={<Text>Portfolio Detail Page Coming Soon!</Text>}
+              element={<PortfolioDetail />}
             />
             {/* Add more routes here as your application grows */}
           </Routes>
