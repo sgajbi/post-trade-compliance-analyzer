@@ -1,20 +1,48 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, date # Ensure 'date' is imported
 from bson import ObjectId
-from fastapi import APIRouter, UploadFile, File, HTTPException  
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from db.mongo import portfolio_collection
 from agents.policy_validator import PolicyValidatorAgent
 from agents.risk_drift import RiskDriftAgent
 from agents.breach_reporter import BreachReporterAgent
 from rag_service import ingest_portfolio_analysis
-from utils.serializers import serialize_portfolio_summary, serialize_portfolio_detail 
+from utils.serializers import serialize_portfolio_summary, serialize_portfolio_detail
 
-router = APIRouter() 
+# --- Pydantic Models for Input Validation ---
+from pydantic import BaseModel, Field, ValidationError
+from typing import List, Optional
 
-logger = logging.getLogger(__name__) 
+class Position(BaseModel):
+    isin: str
+    symbol: str
+    quantity: int = Field(..., gt=0) # quantity must be greater than 0
+    avg_price: float = Field(..., ge=0) # price must be greater than or equal to 0
+    market_price: float = Field(..., ge=0)
+    sector: str
 
-@router.post("/upload") 
+class Trade(BaseModel):
+    trade_id: str
+    symbol: str
+    quantity: int
+    price: float = Field(..., ge=0)
+    trade_date: date # Pydantic parses this to datetime.date
+    type: str # Could be Literal["BUY", "SELL"] for stricter validation, but str is fine for now
+
+class PortfolioInput(BaseModel):
+    client_id: str
+    portfolio_id: str
+    date: date # Pydantic parses this to datetime.date
+    positions: List[Position]
+    trades: Optional[List[Trade]] = [] # Trades are optional, defaults to empty list if not provided
+
+
+router = APIRouter()
+
+logger = logging.getLogger(__name__)
+
+@router.post("/upload")
 async def upload_portfolio(file: UploadFile = File(...)):
     """
     Uploads a portfolio JSON file, processes it through compliance agents,
@@ -22,99 +50,107 @@ async def upload_portfolio(file: UploadFile = File(...)):
     """
     logger.info(f"Received upload request for file: {file.filename}")
     contents = await file.read()
-    
+
     try:
-        decoded_content = contents.decode("utf-8")
-        portfolio_data = json.loads(decoded_content)
+        portfolio_data_parsed = PortfolioInput.parse_raw(contents)
+        portfolio_data = portfolio_data_parsed.model_dump(mode='json') if hasattr(portfolio_data_parsed, 'model_dump') else portfolio_data_parsed.dict()
+        
+        logger.info(f"Successfully parsed and validated portfolio data for {portfolio_data.get('portfolio_id')}.")
+
+    except ValidationError as e:
+        logger.error(f"Validation error for file {file.filename}: {e.errors()}")
+        raise HTTPException(status_code=400, detail=f"Invalid portfolio data format: {e.errors()}")
     except json.JSONDecodeError as e:
         logger.error(f"Failed to decode or parse JSON from file {file.filename}: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid JSON format in uploaded file: {e}")
     except Exception as e:
-        logger.error(f"Error reading or decoding file {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing uploaded file: {e}")
+        logger.error(f"Error reading or decoding file {file.filename}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error reading or decoding file: {e}")
 
-    portfolio_id = portfolio_data.get("portfolio_id")
-    if not portfolio_id:
-        logger.warning(f"Uploaded portfolio from {file.filename} missing 'portfolio_id'.")
-        raise HTTPException(status_code=400, detail="Portfolio data must contain a 'portfolio_id'.")
-        
+    # Extract relevant data after validation
     positions = portfolio_data.get("positions", [])
-    if not isinstance(positions, list):
-        logger.warning(f"Portfolio {portfolio_id} has 'positions' not as a list.")
-        raise HTTPException(status_code=400, detail="'positions' field must be a list.")
+    client_id = portfolio_data.get("client_id")
+    portfolio_id = portfolio_data.get("portfolio_id")
 
-    # === Agents Execution ===
+    if not portfolio_id:
+        logger.warning("Uploaded portfolio data is missing 'portfolio_id'.")
+        raise HTTPException(status_code=400, detail="Portfolio data must contain a 'portfolio_id'.")
+    if not client_id:
+        logger.warning(f"Uploaded portfolio {portfolio_id} data is missing 'client_id'.")
+        raise HTTPException(status_code=400, detail="Portfolio data must contain a 'client_id'.")
+
+    # Initialize and run compliance agents
+    logger.info(f"Running PolicyValidatorAgent for portfolio {portfolio_id}...")
+    policy_validator = PolicyValidatorAgent(positions)
+    policy_violations = policy_validator.run()
+
+    logger.info(f"Running RiskDriftAgent for portfolio {portfolio_id}...")
+    risk_drift_analyzer = RiskDriftAgent(positions)
+    risk_drifts = risk_drift_analyzer.run()
+
+    logger.info(f"Running BreachReporterAgent for portfolio {portfolio_id} to generate report...")
+    breach_reporter = BreachReporterAgent(policy_violations, risk_drifts)
+    report = breach_reporter.generate_report()
+
+    # Ingest analysis into RAG for natural language querying
+    analysis_text = json.dumps(report, indent=2) # Convert report dict to string for RAG
+    logger.info(f"Ingesting analysis for portfolio {portfolio_id} into RAG.")
     try:
-        logger.info(f"Running PolicyValidatorAgent for portfolio {portfolio_id}...")
-        policy_violations = PolicyValidatorAgent(positions).run()
-        logger.info(f"Running RiskDriftAgent for portfolio {portfolio_id}...")
-        risk_drifts = RiskDriftAgent(positions).run()
-        logger.info(f"Generating breach report for portfolio {portfolio_id}...")
-        report = BreachReporterAgent(policy_violations, risk_drifts).generate_report()
+        ingest_portfolio_analysis(portfolio_id, analysis_text)
+        logger.info(f"Analysis for portfolio {portfolio_id} successfully ingested into RAG.")
     except Exception as e:
-        logger.error(f"Error during agent analysis for portfolio {portfolio_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error during compliance analysis: {e}")
+        logger.error(f"Failed to ingest analysis for portfolio {portfolio_id} into RAG: {e}", exc_info=True)
 
-    # === Ingest into Vector DB (RAG Service) ===
-    try:
-        # Convert report to JSON string for RAG ingestion
-        report_json_string = json.dumps(report, indent=2)
-        logger.info(f"Ingesting portfolio analysis into RAG service for {portfolio_id}...")
-        ingest_portfolio_analysis(portfolio_id, report_json_string)
-        logger.info(f"Successfully ingested analysis for portfolio {portfolio_id}.")
-    except Exception as e:
-        logger.error(f"Error ingesting analysis into RAG service for portfolio {portfolio_id}: {e}", exc_info=True)
-        # Decide if this should be a critical error or if the process can continue without RAG
-        raise HTTPException(status_code=500, detail=f"Error integrating with RAG service: {e}")
 
-    # === Store in MongoDB ===
+    # Prepare record for MongoDB
     portfolio_record = {
         "client_id": portfolio_data.get("client_id"),
-        "portfolio_id": portfolio_id,
-        "date": portfolio_data.get("date", datetime.utcnow().isoformat()),
+        "portfolio_id": portfolio_data.get("portfolio_id"),
+        "date": portfolio_data.get("date"),
         "positions": positions,
-        "trades": portfolio_data.get("trades", []), 
+        "trades": portfolio_data.get("trades", []),
         "analysis": report,
         "uploaded_at": datetime.utcnow()
     }
+    
+    for trade in portfolio_record["trades"]:
+        if isinstance(trade.get("trade_date"), date):
+            trade["trade_date"] = trade["trade_date"].isoformat()
 
+    logger.info(f"Saving portfolio {portfolio_id} to MongoDB...")
     try:
-        logger.info(f"Saving portfolio record to database for {portfolio_id}...")
-        # Await is only effective if portfolio_collection is an async client (e.g., motor)
         await portfolio_collection.insert_one(portfolio_record)
-        logger.info(f"Portfolio {portfolio_id} successfully saved to DB.")
+        logger.info(f"Portfolio {portfolio_id} saved to MongoDB successfully.")
     except Exception as e:
-        logger.error(f"Error saving portfolio {portfolio_id} to database: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error storing portfolio in database: {e}")
+        logger.error(f"Failed to save portfolio {portfolio_id} to MongoDB: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save portfolio to database: {e}")
 
     return {
         "filename": file.filename,
         "analysis": report,
-        "portfolio_id": portfolio_id,
-        "status": "success"
+        "portfolio_id": portfolio_data.get("portfolio_id"),
+        "status": "saved_to_db"
     }
 
-@router.get("/portfolios") 
+
+@router.get("/portfolios")
 async def get_all_portfolios():
     """
-    Retrieves a summary list of all uploaded portfolios, sorted by upload date.
+    Retrieves a summary list of all uploaded portfolios, sorted by upload time.
     """
-    logger.info("Fetching all portfolio summaries...")
-    portfolios = []
+    logger.info("Fetching all portfolios summary...")
     try:
-        # Ensure portfolio_collection is async (motor) for await to be non-blocking
         cursor = portfolio_collection.find().sort("uploaded_at", -1)
+        portfolios = []
         async for portfolio in cursor:
-            serialized_portfolio = serialize_portfolio_summary(portfolio)
-            if serialized_portfolio:
-                portfolios.append(serialized_portfolio)
-        logger.info(f"Found {len(portfolios)} portfolio summaries.")
+            portfolios.append(serialize_portfolio_summary(portfolio))
+        logger.info(f"Successfully retrieved {len(portfolios)} portfolios summary.")
         return portfolios
     except Exception as e:
         logger.error(f"Error fetching all portfolios: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error retrieving portfolios: {e}")
 
-@router.get("/portfolio/{id}") 
+@router.get("/portfolio/{id}")
 async def get_portfolio(id: str):
     """
     Retrieves the detailed record of a single portfolio by its MongoDB ObjectId.
@@ -131,16 +167,17 @@ async def get_portfolio(id: str):
         if not portfolio:
             logger.warning(f"Portfolio with ID {id} not found.")
             raise HTTPException(status_code=404, detail="Portfolio not found")
-        
+
         serialized_portfolio = serialize_portfolio_detail(portfolio)
         if not serialized_portfolio:
             logger.error(f"Failed to serialize portfolio {id} detail.")
             raise HTTPException(status_code=500, detail="Error processing portfolio data.")
-            
+
         logger.info(f"Successfully retrieved detail for portfolio ID: {id}")
         return serialized_portfolio
     except HTTPException:
+        # Re-raise HTTPExceptions as they are already properly formatted
         raise
     except Exception as e:
         logger.error(f"Error retrieving portfolio {id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error retrieving portfolio detail: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving portfolio: {e}")
