@@ -1,112 +1,125 @@
 import chromadb
-from chromadb.utils import embedding_functions 
+from chromadb.utils import embedding_functions
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 import os
 import logging
+from bson import ObjectId
+from chromadb.api import models
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Initialize ChromaDB and embedding model ---
-# Use PersistentClient for data to be saved to disk
-# Ensure the directory exists or is writable by the application
+# These will be set by the application's startup event in main.py
+_chroma_client = None
+_embedding_function = None
+_rag_collection = None
+
+# Constants for ChromaDB path and collection name
 CHROMA_DB_PATH = "./chroma_db"
-try:
-    chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-    logger.info(f"Initialized ChromaDB PersistentClient at {CHROMA_DB_PATH}")
-except Exception as e:
-    logger.error(f"Failed to initialize ChromaDB PersistentClient: {e}")
-    # Depending on your application's tolerance, you might want to exit or raise
-    raise
-
-# Initialize the SentenceTransformer model for embeddings
-try:
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-    logger.info("Loaded SentenceTransformer model 'all-MiniLM-L6-v2'")
-except Exception as e:
-    logger.error(f"Failed to load SentenceTransformer model: {e}")
-    raise
-
-# Get or create the collection for portfolio analysis
 COLLECTION_NAME = "portfolio_analysis"
-try:
-    collection = chroma_client.get_or_create_collection(COLLECTION_NAME)
-    logger.info(f"Accessed/Created ChromaDB collection: {COLLECTION_NAME}")
-except Exception as e:
-    logger.error(f"Failed to get or create ChromaDB collection '{COLLECTION_NAME}': {e}")
-    raise
 
+def set_rag_components(client: chromadb.PersistentClient, ef: embedding_functions.SentenceTransformerEmbeddingFunction, collection: models.Collection):
+    """Sets the global ChromaDB client, embedding function, and collection."""
+    global _chroma_client, _embedding_function, _rag_collection
+    _chroma_client = client
+    _embedding_function = ef
+    _rag_collection = collection
+    logger.info("RAG components (ChromaDB client, embedding function, collection) have been set.")
 
-def ingest_portfolio_analysis(portfolio_id: str, analysis_text: str):
+def get_chroma_client():
+    if _chroma_client is None:
+        raise RuntimeError("ChromaDB client not initialized. Ensure app startup event ran.")
+    return _chroma_client
+
+def get_embedding_function():
+    if _embedding_function is None:
+        raise RuntimeError("Embedding function not initialized. Ensure app startup event ran.")
+    return _embedding_function
+
+def get_rag_collection():
+    if _rag_collection is None:
+        raise RuntimeError("RAG collection not initialized. Ensure app startup event ran.")
+    return _rag_collection
+
+async def ingest_portfolio_analysis(client_id: str, portfolio_data: dict, analysis_report: str, portfolio_id: str):
     """
-    Ingests portfolio analysis text into the ChromaDB collection.
-    Splits the text into lines, generates embeddings, and adds them to the vector store.
+    Ingests portfolio analysis and report into ChromaDB for RAG.
+    Each portfolio document is ingested with metadata including client_id and portfolio_id.
     """
-    if not portfolio_id or not analysis_text:
-        logger.warning("Attempted to ingest empty portfolio_id or analysis_text.")
-        return
-
-    portfolio_id_norm = portfolio_id.strip().lower()
-
-    # Split analysis text into lines, filter out empty lines
-    lines = [line.strip() for line in analysis_text.split("\n") if line.strip()]
-
-    if not lines:
-        logger.info(f"No content lines to ingest for portfolio {portfolio_id_norm}.")
-        return
-
+    logger.info(f"Ingesting analysis for portfolio {client_id}/{portfolio_id} into ChromaDB...")
     try:
-        embeddings = embedding_model.encode(lines).tolist()
-        ids = [f"{portfolio_id_norm}_{i}" for i in range(len(lines))]
-        metadatas = [{"portfolio_id": portfolio_id_norm} for _ in lines]
+        collection = get_rag_collection()
+        embedding_function = get_embedding_function()
 
-        collection.add(documents=lines, ids=ids, embeddings=embeddings, metadatas=metadatas)
-        logger.info(f"Ingested {len(lines)} lines for portfolio {portfolio_id_norm} into ChromaDB.")
-        for line in lines:
-            logger.debug(f"  → Ingested line: {line}") # Use debug for verbose output
+        # Ensure _id is a string if it's an ObjectId for metadata
+        if "_id" in portfolio_data and isinstance(portfolio_data["_id"], ObjectId):
+            portfolio_data["_id"] = str(portfolio_data["_id"])
+
+        # Create a unique ID for the document in ChromaDB
+        # Using a combination of client_id, portfolio_id, and a timestamp for uniqueness if re-ingested
+        doc_id = f"{client_id}-{portfolio_id}-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+        # Combine relevant data into a single string for embedding
+        # This string will be the "document" content
+        document_content = f"Client ID: {client_id}\n" \
+                           f"Portfolio ID: {portfolio_id}\n" \
+                           f"Compliance Report Summary: {analysis_report}\n" \
+                           f"Portfolio Details: {portfolio_data.get('compliance_report', '')}\n" \
+                           f"Positions: {portfolio_data.get('positions', [])}\n" \
+                           f"Analysis: {portfolio_data.get('analysis', {})}"
+
+
+        # Add the document to the collection
+        collection.add(
+            documents=[document_content],
+            metadatas=[{"client_id": client_id, "portfolio_id": portfolio_id}],
+            ids=[doc_id]
+        )
+        logger.info(f"Successfully ingested analysis for portfolio {client_id}/{portfolio_id} into ChromaDB.")
     except Exception as e:
-        logger.error(f"Error during ingestion for portfolio {portfolio_id_norm}: {e}", exc_info=True)
+        logger.error(f"Error ingesting portfolio analysis for {client_id}/{portfolio_id}: {e}", exc_info=True)
         raise
 
-def query_portfolio(portfolio_id: str, question: str, top_k: int = 3) -> str:
+async def query_portfolio(client_id: str, portfolio_id: str, question: str) -> str:
     """
-    Queries the ChromaDB for relevant context related to a specific portfolio and question,
-    then uses an LLM (OpenAI GPT-4) to answer the question based on the retrieved context.
+    Queries the ChromaDB for information about a specific portfolio
+    and uses an LLM to answer a question based on the retrieved context.
     """
-    if not portfolio_id or not question:
-        logger.warning("Attempted to query with empty portfolio_id or question.")
-        return "Please provide a valid portfolio ID and question."
-
-    portfolio_id_norm = portfolio_id.strip().lower()
-    logger.info(f"Querying RAG for portfolio_id={portfolio_id_norm}, question='{question}'")
-
-    # Debug: print all documents to check what's stored (can be noisy in production)
-    # logger.debug("\n[DEBUG] All stored documents:")
-    # all_docs = collection.get(include=["metadatas", "documents", "ids"])
-    # for doc, meta in zip(all_docs["documents"], all_docs["metadatas"]):
-    #     logger.debug(f" → {doc} | {meta}")
-
     try:
-        # Query with metadata filter to restrict results to the specific portfolio
+        collection = get_rag_collection()
+        embedding_function = get_embedding_function()
+
+        # Normalize client_id and portfolio_id for consistent filtering
+        client_id_norm = client_id.strip().upper()
+        portfolio_id_norm = portfolio_id.strip().upper()
+
+        # Generate embedding for the question
+        query_embedding = embedding_function([question])[0] # embedding_function returns a list of embeddings
+
+        logger.info(f"Querying ChromaDB for portfolio {portfolio_id_norm} with question.")
+
+        # Corrected where clause for ChromaDB to filter by both client_id and portfolio_id
         results = collection.query(
-            query_texts=[question], n_results=top_k, where={"portfolio_id": portfolio_id_norm}
+            query_embeddings=[query_embedding],
+            n_results=1, # Retrieve the top 1 most relevant document
+            where={
+                "$and": [
+                    {"client_id": client_id_norm},
+                    {"portfolio_id": portfolio_id_norm}
+                ]
+            }
         )
 
-        raw_docs = results.get("documents", [[]])[0] if results.get("documents") else []
+        context = ""
+        if results and results["documents"]:
+            # Join the documents to form the context for the LLM
+            context = "\n".join(results["documents"][0]) # Assuming documents[0] is a list of strings
 
-        # Clean and filter documents
-        # Note: 'strip('",')' should be carefully considered if quotes/commas can be valid content
-        # And the 'risk_drifts' filter is specific to your report format.
-        cleaned_docs = [
-            line.strip().strip('",')
-            for line in raw_docs
-            if line.strip() and not line.strip().startswith("risk_drifts")
-        ]
+        logger.debug(f"Context retrieved from ChromaDB for portfolio {portfolio_id_norm} with question.")
 
-        context = "\n".join(cleaned_docs)
-        logger.debug(f"Retrieved context for portfolio {portfolio_id_norm}:\n{context}")
+        logger.debug(f"Context provided to LLM for portfolio {portfolio_id_norm}:\\n{context}")
 
         if not context:
             logger.warning(f"No relevant context found for portfolio {portfolio_id_norm} and question.")
@@ -118,7 +131,7 @@ def query_portfolio(portfolio_id: str, question: str, top_k: int = 3) -> str:
 
 Answer the question: "{question}"
 """
-        logger.debug(f"Generated prompt:\n{prompt}")
+        logger.debug(f"Generated prompt:\\n{prompt}")
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
@@ -126,17 +139,17 @@ Answer the question: "{question}"
             raise Exception("OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable.")
 
         client = OpenAI(api_key=openai_api_key)
-        
+
         logger.info(f"Calling OpenAI GPT-4 for portfolio {portfolio_id_norm}...")
         response = client.chat.completions.create(
-            model="gpt-4", # Consider using a newer model if available and suitable
+            model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-        
+
         answer = response.choices[0].message.content.strip()
         logger.info(f"Successfully received answer from OpenAI for portfolio {portfolio_id_norm}.")
         return answer
 
     except Exception as e:
-        logger.error(f"Error during RAG query or OpenAI call for portfolio {portfolio_id_norm}: {e}", exc_info=True)
-        raise # Re-raise the exception to be handled by the FastAPI endpoint
+        logger.error(f"Error during RAG query or OpenAI call for portfolio {client_id}/{portfolio_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing RAG query: {e}")
