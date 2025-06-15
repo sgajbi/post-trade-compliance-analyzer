@@ -10,264 +10,310 @@
   --danger-red: #dc3545;
   --border-color: #ced4da;
   --box-shadow-color: rgba(0, 0, 0, 0.08);
+  --tab-inactive-bg: #e9ecef;
+  --tab-inactive-text: #495057;
+  --tab-active-bg: var(--primary-blue);
+  --tab-active-text: white;
+  --tab-hover-bg: #dee2e6;
 }
 
 /* --- Crucial additions for Centering the Entire UI --- */
 html,
 body {
-  margin: 0; /* Remove default browser margins */
-  padding: 0; /* Remove default browser padding */
-  width: 100%; /* Ensure they span full width */
-  min-height: 100vh; /* Ensure body takes at least full viewport height */
-  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background-color: var(--light-gray); /* Soft background for the whole page */
-  display: flex; /* Use flexbox to center the content */
-  justify-content: center; /* Horizontally center the content within the body */
-  /* align-items: center;  <-- Uncomment this if you want vertical centering as well */
-  /* flex-direction: column; if you need content to stack vertically and then center */
-  padding: 20px; /* Add some padding around the content */
+  background-color: var(--light-gray);
+  display: flex;
+  justify-content: center;
 }
 
 .app-container {
-  max-width: 900px;
-  width: 100%; /* Make it responsive */
-  margin: 0 auto; /* Center the container for older browsers/flex fallback */
-  padding: 30px;
   background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 6px 20px var(--box-shadow-color);
+  box-shadow: 0 4px 20px var(--box-shadow-color);
+  padding: 2.5rem;
+  margin: 30px auto;
+  max-width: 900px;
+  width: 100%;
+  box-sizing: border-box;
   text-align: center;
 }
 
 h1 {
   color: var(--dark-gray);
-  font-size: 2.2em;
-  margin-bottom: 30px;
-  border-bottom: 2px solid var(--medium-gray);
-  padding-bottom: 15px;
+  margin-bottom: 1.5rem;
+  font-size: 2.2rem;
 }
 
-h2 {
-  color: var(--dark-gray);
-  font-size: 1.8em;
-  margin-top: 30px;
-  margin-bottom: 20px;
-}
-
-h3 {
-  color: var(--secondary-gray);
-  font-size: 1.4em;
-  margin-top: 25px;
-  margin-bottom: 15px;
-}
-
+h3,
 h4 {
-  color: var(--secondary-gray);
-  font-size: 1.2em;
-  margin-top: 20px;
-  margin-bottom: 10px;
-}
-
-/* Section Styling */
-.upload-section,
-.result-section,
-.chat-section,
-.static-data-section {
-  background-color: #fcfdff; /* Slightly different from overall light-gray */
-  padding: 25px;
-  border-radius: 10px;
-  margin-bottom: 25px;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
-  border: 1px solid var(--medium-gray);
-  text-align: left; /* Align content inside sections to left */
-}
-
-.preview-box {
-  background-color: #e9f5fd;
-  padding: 15px;
-  border-radius: 8px;
-  margin-top: 20px;
-  border: 1px solid #b3e0ff;
-  color: #2196f3;
-  text-align: left;
-}
-
-/* Input and Button Styling */
-input[type="file"] {
-  display: block;
-  margin-bottom: 15px;
-  padding: 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-  width: calc(100% - 18px); /* Adjust for padding/border */
-  box-sizing: border-box; /* Ensures padding and border are included in the width */
-}
-
-.upload-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px; /* Space between file input and button */
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
-}
-
-.upload-controls input[type="file"] {
-  flex-grow: 1; /* Allow file input to take available space */
-  margin-bottom: 0; /* Remove extra margin */
-}
-
-input[type="text"] {
-  width: calc(80% - 22px); /* Adjust for padding/border and button width */
-  padding: 10px;
-  margin-right: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-  font-size: 1em;
-  box-sizing: border-box;
-}
-
-button {
-  padding: 10px 20px;
-  background-color: var(--primary-blue);
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 1em;
-  transition: background-color 0.3s ease, opacity 0.3s ease;
-}
-
-button:hover:not(:disabled) {
-  background-color: var(--primary-blue-dark);
-}
-
-button:disabled {
-  background-color: #a0c4ff;
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-/* List Styling */
-ul {
-  list-style: none; /* Remove default bullet points */
-  padding-left: 0;
-  margin-top: 15px;
-}
-
-ul li {
-  background-color: #ffffff;
-  border: 1px solid #eee;
-  padding: 10px 15px;
-  margin-bottom: 8px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  font-size: 0.95em;
-  color: #444;
-}
-
-ul li:last-child {
-  margin-bottom: 0;
-}
-
-/* Specific list items for results */
-.result-section ul li:not(.green) {
-  background-color: #fff3e0; /* Light orange for warnings/drifts */
-  border-color: #ffe0b2;
-  color: #e65100;
-}
-
-.result-section ul li.green {
-  /* For '✅ None' case */
-  background-color: #e8f5e9;
-  border-color: #a5d6a7;
-  color: #2e7d32;
-  font-weight: bold;
-}
-
-.chat-answer {
-  background-color: #e3f2fd;
-  border: 1px solid #bbdefb;
-  padding: 15px;
-  margin-top: 20px;
-  border-radius: 8px;
-  color: #1976d2;
-  font-weight: bold;
-  text-align: center;
+  color: var(--primary-blue);
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
 }
 
 .error-message {
   color: var(--danger-red);
-  background-color: #ffebee;
-  border: 1px solid #ffcdd2;
-  padding: 10px;
-  margin-top: 15px;
-  margin-bottom: 15px;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
   border-radius: 8px;
-  text-align: center;
-  font-weight: bold;
+  padding: 10px 15px;
+  margin-bottom: 20px;
+  font-weight: 500;
 }
 
-/* Static data sections */
-.static-data-section {
-  padding-top: 30px;
-  border-top: 2px dashed var(--medium-gray);
-  margin-top: 30px;
+/* Tab Navigation Styling */
+.tabs {
+  display: flex;
+  justify-content: center; /* Center the tabs themselves */
+  margin-bottom: 25px;
+  border-bottom: 2px solid var(--medium-gray); /* Underline for tabs */
 }
 
-.clients-section,
-.product-shelf-section {
+.tabs button {
+  flex-grow: 1; /* Make buttons take equal width */
+  padding: 12px 20px;
+  margin: 0 5px; /* Space between buttons */
+  background-color: var(--tab-inactive-bg);
+  color: var(--tab-inactive-text);
+  border: none;
+  border-bottom: 3px solid transparent; /* For active tab indicator */
+  border-radius: 8px 8px 0 0; /* Rounded top corners only */
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  min-width: 150px; /* Ensure a minimum width for readability */
+}
+
+.tabs button:hover:not(.active) {
+  background-color: var(--tab-hover-bg);
+  color: var(--dark-gray);
+}
+
+.tabs button.active {
+  background-color: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  border-bottom: 3px solid var(--primary-blue-dark); /* Stronger indicator for active tab */
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08); /* Subtle shadow for active tab */
+  transform: translateY(-2px); /* Slightly lift active tab */
+}
+
+.tab-content {
+  padding-top: 20px; /* Space between tabs and content */
+  /* Remove border-top from sections here as it's now managed by tabs */
+}
+
+/* Existing section styles, adjust as needed */
+.upload-section,
+.chat-section,
+.product-shelf-section,
+.client-section {
+  margin-top: 0; /* Reset margin-top as tabs provide separation */
+  padding-top: 0; /* Reset padding-top */
+  border-top: none; /* Remove individual section top borders */
+  text-align: left;
+}
+
+.upload-section h3,
+.chat-section h3,
+.product-shelf-section h3,
+.client-section h3 {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.upload-section h3::before {
+  content: "⬆️";
+  margin-right: 10px;
+}
+
+.chat-section h3::before {
+  content: "🤖"; /* Updated icon for chat */
+  margin-right: 10px;
+}
+
+.product-shelf-section h3::before {
+  content: "🛍️";
+  margin-right: 10px;
+}
+
+.client-section h3::before {
+  content: "👥";
+  margin-right: 10px;
+}
+
+input[type="file"] {
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  border-radius: 6px;
+  margin-right: 10px;
+  color: var(--secondary-gray);
+}
+
+/* General button style (used for upload, ask) */
+button:not(.tabs button) {
+  /* Exclude tab buttons from this general style */
+  padding: 10px 20px;
+  background-color: var(--primary-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+button:not(.tabs button):hover {
+  background-color: var(--primary-blue-dark);
+}
+
+button:disabled {
+  background-color: var(--secondary-gray);
+  cursor: not-allowed;
+}
+
+.preview-box,
+.result-section {
+  background-color: var(--light-gray);
+  border: 1px solid var(--medium-gray);
+  border-radius: 8px;
+  padding: 1.2rem;
   margin-top: 20px;
+  text-align: left;
 }
 
-.clients-section ul ul {
-  border-left: 3px solid #cfe8ff; /* A subtle visual cue for nested lists */
-  padding-left: 15px;
-  margin-top: 8px;
+.preview-box p {
+  margin: 0;
+  color: var(--dark-gray);
+}
+
+.result-section ul {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 10px;
+}
+
+.result-section li {
+  background-color: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 10px 15px;
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  color: var(--dark-gray);
+  font-size: 0.95rem;
 }
 
-.clients-section ul ul li {
-  background-color: #f0f8ff;
-  border-color: #cce7ff;
-  color: #336699;
-  font-size: 0.9em;
-  padding: 8px 12px;
+.result-section li.no-violations {
+  color: var(--success-green);
+  font-weight: 600;
 }
 
-/* Product Shelf Table Styling */
-.product-shelf-section table {
+.chat-section input[type="text"] {
+  width: calc(60% - 22px);
+  padding: 10px;
+  margin-top: 10px;
+  margin-right: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 1rem;
+  color: var(--dark-gray);
+}
+
+.chat-answer {
+  margin-top: 15px;
+  padding: 12px 15px;
+  background-color: #e9f7ef;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--dark-gray);
+}
+
+/* Product Shelf Specific Styling */
+.product-shelf-section button:not(.tabs button) {
+  /* Apply to product shelf specific button */
+  background-color: var(--success-green);
+}
+
+.product-shelf-section button:not(.tabs button):hover {
+  background-color: #218838;
+}
+
+.product-shelf-section .product-list table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 15px;
   background-color: #fff;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   border-radius: 8px;
-  overflow: hidden; /* Ensures rounded corners apply to table content */
+  overflow: hidden;
 }
 
-.product-shelf-section th,
-.product-shelf-section td {
+.product-shelf-section .product-list th,
+.product-shelf-section .product-list td {
   border: 1px solid var(--medium-gray);
   padding: 12px 15px;
   text-align: left;
-}
-
-.product-shelf-section th {
-  background-color: #eef2f6;
   color: var(--dark-gray);
+}
+
+.product-shelf-section .product-list th {
+  background-color: #f2f2f2;
   font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.9em;
 }
 
-.product-shelf-section tr:nth-child(even) {
-  background-color: #f6f8fa; /* Zebra striping */
+.product-shelf-section .product-list tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
 }
 
-.product-shelf-section tr:hover {
-  background-color: #eef7ff; /* Highlight row on hover */
+.product-shelf-section .product-list tbody tr:hover {
+  background-color: #f1f1f1;
+}
+
+/* Client Section Specific Styling */
+.client-section button:not(.tabs button) {
+  background-color: var(--primary-blue); /* Can be changed if desired */
+}
+
+.client-section button:not(.tabs button):hover {
+  background-color: var(--primary-blue-dark);
+}
+
+.client-card {
+  background-color: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.client-card h4 {
+  margin-top: 0;
+  color: var(--dark-gray);
+  font-size: 1.1rem;
+}
+
+.client-card ul {
+  list-style: disc;
+  padding-left: 25px;
+  margin-top: 10px;
+}
+
+.client-card li {
+  margin-bottom: 5px;
+  color: var(--secondary-gray);
 }

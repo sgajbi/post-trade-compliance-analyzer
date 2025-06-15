@@ -1,50 +1,112 @@
-
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import UploadSection from './components/UploadSection';
-import api from './services/api'; // Ensure api is imported for the chat section and new data fetches
+import ProductShelfSection from './components/ProductShelfSection';
+import ClientSection from './components/ClientSection';
+import ChatSection from './components/ChatSection';
+import api from './services/api';
 
 function App() {
   const [uploadResponse, setUploadResponse] = useState(null);
-  const [chatQuestion, setChatQuestion] = useState('');
-  const [chatAnswer, setChatAnswer] = useState('');
   const [errorMessage, setErrorMessage] = useState(''); // Global error message state
-  const [clients, setClients] = useState([]); // New state for clients
-  const [productShelf, setProductShelf] = useState([]); // New state for product shelf
-  const [loadingClients, setLoadingClients] = useState(false);
+  const [activeTab, setActiveTab] = useState('upload'); // State to manage active tab
+
+  // --- State for Product Shelf ---
+  const [products, setProducts] = useState(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
+  // --- State for Clients ---
+  const [clients, setClients] = useState(null);
+  const [loadingClients, setLoadingClients] = useState(false);
+
+  // --- State for Chat ---
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatAnswer, setChatAnswer] = useState('');
+  const [loadingChat, setLoadingChat] = useState(false);
+
+  // --- Fetch Functions (lifted from components) ---
+
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    setErrorMessage(''); // Clear any global error
+    try {
+      const data = await api.fetchProductShelf();
+      setProducts(data);
+      console.log('Product Shelf Data:', data); // Debugging
+    } catch (error) {
+      console.error('Error fetching product shelf:', error);
+      const msg = error.response?.data?.detail || 'Failed to fetch product shelf data.';
+      setErrorMessage(msg); // Set global error
+      setProducts(null); // Clear products on error
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const fetchClients = async () => {
+    setLoadingClients(true);
+    setErrorMessage(''); // Clear any global error
+    try {
+      const data = await api.fetchClients();
+      setClients(data);
+      console.log('Clients Data:', data); // Debugging
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      const msg = error.response?.data?.detail || 'Failed to fetch clients data.';
+      setErrorMessage(msg); // Set global error
+      setClients(null); // Clear clients on error
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
+  const handleChatSubmit = async () => {
+    console.log('Chat button clicked. Current uploadResponse for chat:', uploadResponse); // DEBUG
+    if (!uploadResponse || !uploadResponse.portfolio_id) {
+      setErrorMessage('Please upload a portfolio first to enable chat.');
+      return;
+    }
+    if (!chatQuestion.trim()) {
+      setErrorMessage('Please enter a question.');
+      return;
+    }
+
+    setLoadingChat(true);
+    setErrorMessage(''); // Clear previous global error
+    setChatAnswer(''); // Clear previous answer
+
+    try {
+      const response = await api.askComplianceQuestion(uploadResponse.portfolio_id, chatQuestion);
+      console.log('Chat API success. Response:', response); // DEBUG
+      setChatAnswer(response.answer);
+    } catch (err) {
+      console.error('Chat API Error:', err); // DEBUG
+      setErrorMessage(err.response?.data?.detail || 'Failed to get response from server.');
+      setChatAnswer('❌ Failed to get response from server.');
+    } finally {
+      setLoadingChat(false);
+    }
+  };
+
+
+  // --- useEffect for initial data fetches based on active tab ---
+  // This ensures data is loaded only when that tab is first visited,
+  // or when the component mounts if 'upload' is the default.
+  useEffect(() => {
+    // Fetch product shelf data if the tab is active and data hasn't been loaded yet
+    if (activeTab === 'productShelf' && products === null && !loadingProducts) {
+      fetchProducts();
+    }
+    // Fetch clients data if the tab is active and data hasn't been loaded yet
+    if (activeTab === 'clients' && clients === null && !loadingClients) {
+      fetchClients();
+    }
+  }, [activeTab]); // Re-run effect when activeTab changes
 
   // --- DEBUGGING LOGS ---
   console.log('App.jsx render: global uploadResponse:', uploadResponse);
   console.log('App.jsx render: global errorMessage:', errorMessage);
   // --- END DEBUGGING LOGS ---
-
-  // Fetch clients and product shelf data on component mount
-  useEffect(() => {
-    const fetchStaticData = async () => {
-      setLoadingClients(true);
-      setLoadingProducts(true);
-      try {
-        const clientsData = await api.fetchClients();
-        setClients(clientsData);
-        console.log("Fetched Clients:", clientsData);
-
-        const productShelfData = await api.fetchProductShelf();
-        setProductShelf(productShelfData);
-        console.log("Fetched Product Shelf:", productShelfData);
-      } catch (err) {
-        console.error("Error fetching static data:", err);
-        setErrorMessage(`Failed to load static data: ${err.message || 'Network error'}`);
-      } finally {
-        setLoadingClients(false);
-        setLoadingProducts(false);
-      }
-    };
-
-    fetchStaticData();
-  }, []); // Empty dependency array means this runs once on mount
-
 
   return (
     <div className="app-container">
@@ -53,112 +115,76 @@ function App() {
       {/* Global error message display */}
       {errorMessage && <p className="error-message" style={{ color: 'red' }}>{errorMessage}</p>}
 
-      {/* Pass setErrorMessage as setAppErrorMessage to differentiate */}
-      <UploadSection
-        uploadResponse={uploadResponse}
-        setUploadResponse={setUploadResponse}
-        setAppErrorMessage={setErrorMessage}
-      />
-
-      {/* The chat section remains */}
-      <div className="chat-section">
-        <h3>🤖 Ask Compliance Questions:</h3>
-        <input
-          type="text"
-          value={chatQuestion}
-          onChange={(e) => setChatQuestion(e.target.value)}
-          placeholder="e.g., Was there any risk drift in the portfolio?"
-        />
+      {/* Tab Navigation */}
+      <div className="tabs">
         <button
-          onClick={async () => {
-            console.log('Chat button clicked. Current uploadResponse for chat:', uploadResponse); // DEBUG
-            if (!uploadResponse || !uploadResponse.portfolio_id) {
-              setErrorMessage('Please upload a portfolio first to enable chat.');
-              return;
-            }
-            if (!chatQuestion.trim()) {
-              setErrorMessage('Please enter a question.');
-              return;
-            }
-            setErrorMessage(''); // Clear previous global error
-            try {
-              const response = await api.askComplianceQuestion(uploadResponse.portfolio_id, chatQuestion);
-              console.log('Chat API success. Response:', response); // DEBUG
-              setChatAnswer(response.answer);
-            } catch (err) {
-              console.error('Chat API Error:', err); // DEBUG
-              setErrorMessage(err.response?.data?.detail || 'Failed to get response from server.');
-              setChatAnswer('❌ Failed to get response from server.');
-            }
-          }}
+          className={activeTab === 'upload' ? 'active' : ''}
+          onClick={() => setActiveTab('upload')}
         >
-          Ask
+          Upload Portfolio
         </button>
-        {chatAnswer && <p className="chat-answer">💬 {chatAnswer}</p>}
+        <button
+          className={activeTab === 'productShelf' ? 'active' : ''}
+          onClick={() => setActiveTab('productShelf')}
+        >
+          Product Shelf
+        </button>
+        <button
+          className={activeTab === 'clients' ? 'active' : ''}
+          onClick={() => setActiveTab('clients')}
+        >
+          Our Clients
+        </button>
+        <button
+          className={activeTab === 'chat' ? 'active' : ''}
+          onClick={() => setActiveTab('chat')}
+        >
+          Compliance Chat
+        </button>
       </div>
 
-      {/* Static Data Sections - New Addition */}
-      <div className="static-data-section">
-        <h2>Global Data</h2>
+      {/* Tab Content */}
+      <div className="tab-content">
+        {activeTab === 'upload' && (
+          <UploadSection
+            uploadResponse={uploadResponse}
+            setUploadResponse={setUploadResponse}
+            setAppErrorMessage={setErrorMessage}
+          />
+        )}
 
-        {/* Clients Section */}
-        <div className="clients-section">
-          <h3>👥 Clients:</h3>
-          {loadingClients ? (
-            <p>Loading clients...</p>
-          ) : clients.length === 0 ? (
-            <p>No clients data available.</p>
-          ) : (
-            <ul>
-              {clients.map((client) => (
-                <li key={client.client_id}>
-                  <strong>{client.name}</strong> ({client.client_id}) - Portfolios:{" "}
-                  {client.portfolios.length}
-                  <ul>
-                    {client.portfolios.map((portfolio) => (
-                      <li key={portfolio.portfolio_id}>
-                        {portfolio.name} ({portfolio.portfolio_id}) - Risk:{" "}
-                        {portfolio.risk_profile}
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {activeTab === 'productShelf' && (
+          <ProductShelfSection
+            products={products}
+            loadingProducts={loadingProducts}
+            fetchProducts={fetchProducts} // Pass the fetch function
+            setAppErrorMessage={setErrorMessage}
+          />
+        )}
 
-        {/* Product Shelf Section */}
-        <div className="product-shelf-section">
-          <h3>📦 Product Shelf:</h3>
-          {loadingProducts ? (
-            <p>Loading products...</p>
-          ) : productShelf.length === 0 ? (
-            <p>No product shelf data available.</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Name</th>
-                  <th>Sector</th>
-                  <th>Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productShelf.map((product) => (
-                  <tr key={product.isin}>
-                    <td>{product.symbol}</td>
-                    <td>{product.name}</td>
-                    <td>{product.sector}</td>
-                    <td>{product.market_price} {product.currency}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div> {/* End of static-data-section */}
+        {activeTab === 'clients' && (
+          <ClientSection
+            clients={clients}
+            loadingClients={loadingClients}
+            fetchClients={fetchClients} // Pass the fetch function
+            setAppErrorMessage={setErrorMessage}
+          />
+        )}
+
+        {activeTab === 'chat' && (
+          <ChatSection
+            uploadResponse={uploadResponse}
+            setAppErrorMessage={setErrorMessage}
+            chatQuestion={chatQuestion}
+            setChatQuestion={setChatQuestion}
+            chatAnswer={chatAnswer}
+            setChatAnswer={setChatAnswer}
+            loadingChat={loadingChat}
+            setLoadingChat={setLoadingChat}
+            handleChatSubmit={handleChatSubmit} // Pass the submit handler
+          />
+        )}
+      </div>
     </div>
   );
 }

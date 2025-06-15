@@ -26,6 +26,7 @@ const api = {
     return response.data;
   },
 
+  // Re-adding fetchClients function
   fetchClients: async () => {
     const response = await axios.get(`${API_BASE_URL}/clients`);
     return response.data;
