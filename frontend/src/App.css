@@ -28,244 +28,218 @@ body {
   display: flex; /* Use flexbox to center the content */
   justify-content: center; /* Horizontally center the content within the body */
   /* align-items: center;  <-- Uncomment this if you want vertical centering as well */
-  /* flex-direction: column; if align-items: center is used for vertical centering */
+  /* flex-direction: column; if you need content to stack vertically and then center */
+  padding: 20px; /* Add some padding around the content */
 }
-/* --- End of Centering Additions --- */
 
 .app-container {
-  text-align: center;
-  margin: 40px auto; /* Allows vertical margin, and auto for horizontal centering when parent is flex */
-  max-width: 900px; /* Increased max-width for more content space */
-  width: 100%; /* Ensure it respects max-width and is flexible */
-  padding: 2.5rem 3rem; /* More generous padding */
+  max-width: 900px;
+  width: 100%; /* Make it responsive */
+  margin: 0 auto; /* Center the container for older browsers/flex fallback */
+  padding: 30px;
+  background: #ffffff;
   border-radius: 12px;
-  background: #ffffff; /* Pure white background for content area */
-  box-shadow: 0 4px 20px var(--box-shadow-color); /* More pronounced shadow */
-  transition: all 0.3s ease-in-out; /* Smooth transitions for any dynamic changes */
-  flex-shrink: 0; /* Prevent the container from shrinking below its content size in flex context */
-}
-
-.app-container:hover {
-  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.12); /* Subtle hover effect */
+  box-shadow: 0 6px 20px var(--box-shadow-color);
+  text-align: center;
 }
 
 h1 {
   color: var(--dark-gray);
-  margin-bottom: 2rem;
-  font-size: 2.2rem; /* Larger heading */
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 2.2em;
+  margin-bottom: 30px;
+  border-bottom: 2px solid var(--medium-gray);
+  padding-bottom: 15px;
 }
 
-h1::before {
-  content: "📊"; /* Icon for the main heading */
-  margin-right: 15px;
-  font-size: 2.5rem;
+h2 {
+  color: var(--dark-gray);
+  font-size: 1.8em;
+  margin-top: 30px;
+  margin-bottom: 20px;
 }
 
 h3 {
-  color: var(--primary-blue);
-  font-size: 1.4rem;
-  margin-top: 2.5rem;
-  margin-bottom: 1.2rem;
-  padding-bottom: 8px;
-  border-bottom: 2px solid var(--medium-gray); /* Subtle separator */
+  color: var(--secondary-gray);
+  font-size: 1.4em;
+  margin-top: 25px;
+  margin-bottom: 15px;
+}
+
+h4 {
+  color: var(--secondary-gray);
+  font-size: 1.2em;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+/* Section Styling */
+.upload-section,
+.result-section,
+.chat-section,
+.static-data-section {
+  background-color: #fcfdff; /* Slightly different from overall light-gray */
+  padding: 25px;
+  border-radius: 10px;
+  margin-bottom: 25px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--medium-gray);
+  text-align: left; /* Align content inside sections to left */
+}
+
+.preview-box {
+  background-color: #e9f5fd;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+  border: 1px solid #b3e0ff;
+  color: #2196f3;
   text-align: left;
+}
+
+/* Input and Button Styling */
+input[type="file"] {
+  display: block;
+  margin-bottom: 15px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  width: calc(100% - 18px); /* Adjust for padding/border */
+  box-sizing: border-box; /* Ensures padding and border are included in the width */
+}
+
+.upload-controls {
   display: flex;
   align-items: center;
+  gap: 10px; /* Space between file input and button */
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
 }
 
-h3.upload-title::before {
-  content: "📤";
-  margin-right: 10px;
-}
-h3.preview-title::before {
-  content: "📋";
-  margin-right: 10px;
-}
-h3.violations-title::before {
-  content: "🚨";
-  margin-right: 10px;
-}
-h3.drifts-title::before {
-  content: "📉";
-  margin-right: 10px;
-}
-h3.chat-title::before {
-  content: "💬";
-  margin-right: 10px;
+.upload-controls input[type="file"] {
+  flex-grow: 1; /* Allow file input to take available space */
+  margin-bottom: 0; /* Remove extra margin */
 }
 
-.upload-section,
-.chat-section {
-  margin-top: 30px; /* Increased margin */
-  padding-top: 20px;
-  border-top: 1px dashed var(--medium-gray); /* Visual separation */
-}
-
-/* File Input and Button Styling */
-input[type="file"] {
-  display: block; /* Stack input and button on new lines */
-  margin: 15px auto 10px;
-  padding: 8px; /* Added padding for better click area */
+input[type="text"] {
+  width: calc(80% - 22px); /* Adjust for padding/border and button width */
+  padding: 10px;
+  margin-right: 10px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background-color: #fff;
-  cursor: pointer;
+  border-radius: 5px;
+  font-size: 1em;
+  box-sizing: border-box;
 }
 
 button {
-  padding: 10px 22px; /* Increased padding */
-  margin: 10px;
+  padding: 10px 20px;
   background-color: var(--primary-blue);
   color: white;
   border: none;
-  border-radius: 8px; /* Softer border-radius */
+  border-radius: 5px;
   cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease, transform 0.1s ease;
+  font-size: 1em;
+  transition: background-color 0.3s ease, opacity 0.3s ease;
 }
 
-button:hover {
+button:hover:not(:disabled) {
   background-color: var(--primary-blue-dark);
-  transform: translateY(-1px); /* Slight lift effect */
 }
 
 button:disabled {
-  background-color: var(--secondary-gray);
+  background-color: #a0c4ff;
   cursor: not-allowed;
-  transform: none;
+  opacity: 0.7;
 }
 
-/* Preview and Result Sections */
-.preview-box,
-.result-section {
-  margin-top: 25px;
-  padding: 20px 25px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background-color: var(--light-gray); /* Light background for content boxes */
-  text-align: left;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); /* Subtle inner shadow */
-}
-
-.preview-box p {
-  margin: 5px 0;
-  color: var(--dark-gray);
-}
-
-.result-section ul {
-  list-style-type: none; /* Remove default bullets */
-  padding: 0;
-  margin: 0;
-}
-
-.result-section ul li {
-  background-color: #ffffff; /* White background for list items */
-  border: 1px solid var(--medium-gray);
-  border-radius: 5px;
-  padding: 12px 15px;
-  margin-bottom: 10px; /* Space between list items */
-  color: var(--dark-gray);
-  font-size: 0.95rem;
-  line-height: 1.4;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.result-section ul li:last-child {
-  margin-bottom: 0; /* No margin for the last item */
-}
-
-.result-section ul li.success {
-  background-color: #e6ffed; /* Light green for success */
-  border-color: var(--success-green);
-  color: var(--success-green);
-  font-weight: 600;
-}
-
-/* Chat Section */
-.chat-section input[type="text"] {
-  width: calc(60% - 20px); /* Adjust width to account for padding */
-  max-width: 450px; /* Max width for input */
-  padding: 10px;
+/* List Styling */
+ul {
+  list-style: none; /* Remove default bullet points */
+  padding-left: 0;
   margin-top: 15px;
-  margin-right: 10px; /* Space between input and button */
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.chat-section input[type="text"]:focus {
-  border-color: var(--primary-blue);
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Focus highlight */
-  outline: none;
+ul li {
+  background-color: #ffffff;
+  border: 1px solid #eee;
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  font-size: 0.95em;
+  color: #444;
+}
+
+ul li:last-child {
+  margin-bottom: 0;
+}
+
+/* Specific list items for results */
+.result-section ul li:not(.green) {
+  background-color: #fff3e0; /* Light orange for warnings/drifts */
+  border-color: #ffe0b2;
+  color: #e65100;
+}
+
+.result-section ul li.green {
+  /* For '✅ None' case */
+  background-color: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+  font-weight: bold;
 }
 
 .chat-answer {
+  background-color: #e3f2fd;
+  border: 1px solid #bbdefb;
+  padding: 15px;
   margin-top: 20px;
-  padding: 15px 20px;
-  background-color: #e7f5ff; /* Light blue background for answer */
-  border: 1px solid #b3d9ff;
   border-radius: 8px;
-  font-weight: 500;
-  color: var(--dark-gray);
-  text-align: left;
-  line-height: 1.5;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+  color: #1976d2;
+  font-weight: bold;
+  text-align: center;
 }
 
-/* Messages */
 .error-message {
   color: var(--danger-red);
-  margin-top: 15px;
-  font-weight: 600;
-  font-size: 0.95rem;
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
   padding: 10px;
-  background-color: #fdd;
-  border: 1px solid #fbc;
-  border-radius: 5px;
-}
-
-.loading-message {
-  color: var(--primary-blue);
   margin-top: 15px;
-  font-weight: 600;
-  font-size: 0.95rem;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
 }
 
-.product-shelf-section {
+/* Static data sections */
+.static-data-section {
+  padding-top: 30px;
+  border-top: 2px dashed var(--medium-gray);
   margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px dashed var(--medium-gray);
-  text-align: left;
 }
 
-.product-shelf-section h3 {
-  display: flex;
-  align-items: center;
+.clients-section,
+.product-shelf-section {
+  margin-top: 20px;
 }
 
-.product-shelf-section h3::before {
-  content: "🛍️";
-  margin-right: 10px;
+.clients-section ul ul {
+  border-left: 3px solid #cfe8ff; /* A subtle visual cue for nested lists */
+  padding-left: 15px;
+  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
-.product-shelf-section button {
-  margin-bottom: 20px;
-  background-color: var(
-    --success-green
-  ); /* A different color for this button */
+.clients-section ul ul li {
+  background-color: #f0f8ff;
+  border-color: #cce7ff;
+  color: #336699;
+  font-size: 0.9em;
+  padding: 8px 12px;
 }
 
-.product-shelf-section button:hover {
-  background-color: #218838; /* Darker green on hover */
-}
-
-.product-shelf-section .product-list table {
+/* Product Shelf Table Styling */
+.product-shelf-section table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 15px;
@@ -275,30 +249,25 @@ button:disabled {
   overflow: hidden; /* Ensures rounded corners apply to table content */
 }
 
-.product-shelf-section .product-list th,
-.product-shelf-section .product-list td {
+.product-shelf-section th,
+.product-shelf-section td {
   border: 1px solid var(--medium-gray);
   padding: 12px 15px;
   text-align: left;
 }
 
-.product-shelf-section .product-list th {
-  background-color: var(--primary-blue);
-  color: white;
+.product-shelf-section th {
+  background-color: #eef2f6;
+  color: var(--dark-gray);
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.9rem;
+  font-size: 0.9em;
 }
 
-.product-shelf-section .product-list tr:nth-child(even) {
-  background-color: var(--light-gray); /* Zebra striping */
+.product-shelf-section tr:nth-child(even) {
+  background-color: #f6f8fa; /* Zebra striping */
 }
 
-.product-shelf-section .product-list tr:hover {
-  background-color: #f0f0f0; /* Hover effect for rows */
-}
-
-.product-shelf-section .product-list td {
-  color: var(--dark-gray);
-  font-size: 0.95rem;
+.product-shelf-section tr:hover {
+  background-color: #eef7ff; /* Highlight row on hover */
 }

@@ -1,3 +1,4 @@
+// frontend/src/components/UploadSection.jsx
 import React, { useState } from 'react';
 import api from '../services/api';
 
@@ -33,40 +34,49 @@ const UploadSection = ({ uploadResponse, setUploadResponse, setAppErrorMessage }
     setUploading(true); // Start loading indicator
     setLocalErrorMessage(''); // Clear previous local error
     setAppErrorMessage(''); // Clear previous global error
-    setUploadResponse(null); // Clear previous analysis results *at the start* of a new upload attempt
 
     try {
-      console.log('handleUpload: Calling uploadPortfolio API...'); // DEBUG
-      const responseData = await api.uploadPortfolio(file);
-      console.log('handleUpload: API success. Response data received:', responseData); // DEBUG
-      setUploadResponse(responseData); // Update the parent's uploadResponse state
-    } catch (error) {
-      console.error('handleUpload: API Error uploading portfolio:', error); // DEBUG
-      const msg = error.response?.data?.detail || 'Failed to upload portfolio.';
-      setLocalErrorMessage(msg); // Show error locally within this component
-      setUploadResponse(null); // Ensure parent's response is null on current upload failure
+      const response = await api.uploadPortfolio(file);
+      console.log('Upload API success. Response:', response); // DEBUG
+
+      // Correctly access nested analysis data and update state
+      setUploadResponse({
+        filename: response.filename,
+        portfolio_id: response.portfolio_id,
+        status: response.status,
+        analysis: { // Ensure analysis object exists
+          policy_violations: response.analysis?.raw_policy_violations || [],
+          risk_drifts: response.analysis?.raw_risk_drifts || [],
+        }
+      });
+      console.log('Upload successful. UploadResponse updated:', response); // DEBUG
+
+    } catch (err) {
+      console.error('Upload API Error:', err); // DEBUG
+      const errorMsg = err.response?.data?.detail || err.message || 'An unknown error occurred during upload.';
+      setLocalErrorMessage(`Upload failed: ${errorMsg}`);
+      setAppErrorMessage(`Upload failed: ${errorMsg}`); // Also set global error
+      setUploadResponse(null); // Clear response on error
     } finally {
       setUploading(false); // End loading indicator
-      console.log('handleUpload: Upload process finished. Current uploadResponse (after state update):', uploadResponse); // DEBUG
     }
   };
 
   return (
     <div className="upload-section">
-      <h3>📁 Upload Portfolio</h3>
-      <input type="file" onChange={handleFileChange} />
-      {/* Disable button while uploading */}
-      <button onClick={handleUpload} disabled={uploading}>
-        {uploading ? 'Uploading...' : 'Upload Portfolio'}
-      </button>
+      <h2>Upload Portfolio</h2>
+      <div className="upload-controls">
+        <input type="file" onChange={handleFileChange} accept=".json" />
+        <button onClick={handleUpload} disabled={uploading}>
+          {uploading ? 'Uploading...' : 'Upload Portfolio'}
+        </button>
+      </div>
 
-      {/* Display local error messages */}
-      {localErrorMessage && <p className="error-message" style={{ color: 'red' }}>{localErrorMessage}</p>}
+      {localErrorMessage && <p className="error-message">{localErrorMessage}</p>}
 
-      {/* Display temporary preview of selected file if no analysis is present and no local error */}
-      {file && !uploadResponse && !localErrorMessage && (
+      {file && (
         <div className="preview-box">
-          <h3>📋 Selected File:</h3>
+          <h3>📋 Preview of Uploaded File:</h3>
           <p><strong>Filename:</strong> {file.name}</p>
         </div>
       )}
@@ -74,26 +84,26 @@ const UploadSection = ({ uploadResponse, setUploadResponse, setAppErrorMessage }
       {/* Display actual analysis result from uploadResponse, with defensive checks */}
       {uploadResponse && uploadResponse.analysis && (
         <div className="result-section">
-          <h3>📋 Analysis for: {uploadResponse.filename || 'Unknown File'}</h3> {/* Fallback for filename */}
+          <h3>📋 Analysis for: {uploadResponse.filename || 'Unknown File'}</h3>
           <h4>Policy Violations:</h4>
           <ul>
-            {uploadResponse.analysis.policy_violations && uploadResponse.analysis.policy_violations.length === 0 ? (
-              <li>✅ None</li>
+            {/* Ensure policy_violations is an array before mapping */}
+            {Array.isArray(uploadResponse.analysis.policy_violations) && uploadResponse.analysis.policy_violations.length === 0 ? (
+              <li className="green">✅ None</li>
             ) : (
-              // Ensure policy_violations is an array before mapping
               Array.isArray(uploadResponse.analysis.policy_violations) && uploadResponse.analysis.policy_violations.map((item, i) => <li key={i}>{item}</li>)
             )}
           </ul>
 
           <h4>Risk Drift Alerts:</h4>
           <ul>
-            {uploadResponse.analysis.risk_drifts && uploadResponse.analysis.risk_drifts.length === 0 ? (
-              <li>✅ None</li>
+            {/* Ensure risk_drifts is an array before mapping */}
+            {Array.isArray(uploadResponse.analysis.risk_drifts) && uploadResponse.analysis.risk_drifts.length === 0 ? (
+              <li className="green">✅ None</li>
             ) : (
-              // Ensure risk_drifts is an array before mapping
               Array.isArray(uploadResponse.analysis.risk_drifts) && uploadResponse.analysis.risk_drifts.map((item, i) => (
                 <li key={i}>
-                  Risk drift in {item.sector}: Actual {item.actual}, Model {item.model}
+                  Risk drift in {item.sector}: Actual {item.actual.toFixed(2)}, Model {item.model.toFixed(2)}, Drift {item.drift.toFixed(2)} (Threshold: {item.threshold.toFixed(2)})
                 </li>
               ))
             )}
