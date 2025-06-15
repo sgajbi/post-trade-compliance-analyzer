@@ -98,6 +98,11 @@ function App() {
         <Box p={4}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            {/* Placeholder for the Portfolio Detail page - we'll create this next */}
+            <Route
+              path="/portfolio/:clientId/:portfolioId"
+              element={<Text>Portfolio Detail Page Coming Soon!</Text>}
+            />
             {/* Add more routes here as your application grows */}
           </Routes>
         </Box>
