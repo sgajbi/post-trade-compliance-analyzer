@@ -38,6 +38,9 @@ function PortfolioDetail() {
   const [error, setError] = useState(null);
   const [currentTab, setCurrentTab] = useState('summary');
 
+  // New state for historical reports
+  const [historicalReports, setHistoricalReports] = useState([]); 
+
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('info');
@@ -58,18 +61,16 @@ function PortfolioDetail() {
   useEffect(() => {
     const fetchPortfolioDetails = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}`);
+        const response = await fetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/detail`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         setPortfolio(data);
-      } catch (e) {
-        console.error("Failed to fetch portfolio details:", e);
-        setError("Failed to load portfolio details. Please ensure the backend is running and the portfolio exists.");
-        showSnackbar(e.message || "Failed to load details.", "error");
+      } catch (error) {
+        setError(error);
+        console.error("Error fetching portfolio details:", error);
+        showSnackbar(`Error fetching portfolio details: ${error.message}`, 'error');
       } finally {
         setLoading(false);
       }
@@ -78,162 +79,220 @@ function PortfolioDetail() {
     fetchPortfolioDetails();
   }, [clientId, portfolioId]);
 
-  const handleTabChange = (event, newValue) => {
+  // New useEffect to fetch historical reports
+  useEffect(() => {
+    const fetchHistoricalReports = async () => {
+      if (!clientId || !portfolioId) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/history`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setHistoricalReports(data);
+      } catch (error) {
+        console.error("Error fetching historical reports:", error);
+        // Optionally, set an error state for historical reports specifically
+        showSnackbar(`Error fetching historical reports: ${error.message}`, 'error');
+      }
+    };
+
+    fetchHistoricalReports();
+  }, [clientId, portfolioId]); // Re-fetch when client or portfolio ID changes
+
+
+  const handleChangeTab = (event, newValue) => {
     setCurrentTab(newValue);
   };
 
-  // Helper function to render data in a table, adapting to different structures
   const renderData = (data, type) => {
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-      return <Typography sx={{ mt: 2 }}>No {type} found for this portfolio.</Typography>;
+    if (!data) {
+      return <Typography>No data available.</Typography>;
     }
 
-    // Special handling for the 'summary' type to format specific fields
     if (type === 'summary') {
-        const summaryKeys = Object.keys(data).filter(key => key !== 'id' && key !== '_id'); // Exclude the internal 'id' from summary view
-        return (
-            <TableContainer component={Paper} sx={{ mt: 2 }}>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell><Typography variant="subtitle2" fontWeight="bold">Detail</Typography></TableCell>
-                            <TableCell><Typography variant="subtitle2" fontWeight="bold">Value</Typography></TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {summaryKeys.map((key) => (
-                            <TableRow key={key}>
-                                <TableCell>
-                                    <Typography>{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</Typography>
-                                </TableCell>
-                                <TableCell>
-                                    {/* Handle specific keys for better display in summary */}
-                                    {key === 'positions' && Array.isArray(data[key]) ? (
-                                        <Typography>{data[key].length} Positions</Typography>
-                                    ) : key === 'trades' && Array.isArray(data[key]) ? (
-                                        <Typography>{data[key].length} Trades</Typography>
-                                    ) : (key === 'analysis' || key === 'compliance_report') ? (
-                                        // Format analysis and compliance report as pre-formatted JSON strings or lists
-                                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: 0 }}>
-                                            {typeof data[key] === 'object' && data[key] !== null
-                                                ? JSON.stringify(data[key], null, 2)
-                                                : String(data[key])}
-                                        </pre>
-                                    ) : (
-                                        // Default rendering for other primitive types or simple strings
-                                        <Typography>{String(data[key])}</Typography>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        );
+      return (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableBody>
+              <TableRow>
+                <TableCell component="th" scope="row">Client ID:</TableCell>
+                <TableCell>{data.client_id}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell component="th" scope="row">Portfolio ID:</TableCell>
+                <TableCell>{data.portfolio_id}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell component="th" scope="row">Date:</TableCell>
+                <TableCell>{data.date ? new Date(data.date).toLocaleDateString() : 'N/A'}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell component="th" scope="row">Uploaded At:</TableCell>
+                <TableCell>{data.uploaded_at ? new Date(data.uploaded_at).toLocaleString() : 'N/A'}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      );
     }
 
-    // NEW: Special handling for 'compliance_report' type to display the string directly
-    if (type === 'compliance_report_display') {
-        return (
-            <Box sx={{ mt: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: '4px', backgroundColor: '#f9f9f9' }}>
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: 0 }}>
-                    {String(data)}
-                </pre>
-            </Box>
-        );
-    }
-
-
-    // Generic rendering for arrays of objects (used for 'positions', 'trades')
-    const getColumns = () => {
-        const keys = Object.keys(data[0]).filter(key => key !== 'id' && key !== '_id'); // Filter out internal IDs
-        return keys.map(key => ({ key, label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }));
-    };
-
-    const columns = getColumns();
-
-    return (
-      <TableContainer component={Paper} sx={{ mt: 2 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              {columns.map((col) => (
-                <TableCell key={col.key}>
-                  <Typography variant="subtitle2" fontWeight="bold">{col.label}</Typography>
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {data.map((item, index) => (
-                <TableRow key={item.id || index}> {/* Use item.id if available, else index */}
-                    {columns.map((col) => (
-                        <TableCell key={`${item.id || index}-${col.key}`}>
-                            <Typography>{typeof item[col.key] === 'object' && item[col.key] !== null
-                                ? JSON.stringify(item[col.key]) // Stringify objects within table cells if they occur
-                                : String(item[col.key])}
-                            </Typography>
-                        </TableCell>
-                    ))}
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        return <Typography>No {type} available.</Typography>;
+      }
+      const headers = Object.keys(data[0]).filter(key => key !== 'id' && key !== '_id'); // Filter out internal IDs
+      return (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                {headers.map((header) => (
+                  <TableCell key={header} sx={{ textTransform: 'capitalize' }}>
+                    {header.replace(/_/g, ' ')}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {data.map((row, index) => (
+                <TableRow key={index}>
+                  {headers.map((header) => (
+                    <TableCell key={header}>
+                      {header.includes('date') && row[header] ? new Date(row[header]).toLocaleDateString() : row[header]}
+                    </TableCell>
+                  ))}
                 </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    );
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      );
+    }
+
+    // Special rendering for compliance_report_display
+    if (type === 'compliance_report_display') {
+      if (!data) {
+        return <Typography>No compliance report available.</Typography>;
+      }
+      return (
+        <Box>
+          <Typography variant="subtitle1" gutterBottom>
+            **Policy Violations Summary:**
+          </Typography>
+          <Typography variant="body2" sx={{ ml: 2, mb: 1 }}>
+            {data.policy_violations_summary || 'No policy violations detected.'}
+          </Typography>
+
+          <Typography variant="subtitle1" gutterBottom>
+            **Risk Drifts Summary:**
+          </Typography>
+          <Typography variant="body2" sx={{ ml: 2, mb: 1 }}>
+            {data.risk_drifts_summary || 'No significant risk drifts identified.'}
+          </Typography>
+
+          {data.raw_policy_violations && data.raw_policy_violations.length > 0 && (
+            <Box mt={2}>
+              <Typography variant="subtitle2">Raw Policy Violations:</Typography>
+              <ul>
+                {data.raw_policy_violations.map((violation, idx) => (
+                  <li key={idx}><Typography variant="body2">{violation}</Typography></li>
+                ))}
+              </ul>
+            </Box>
+          )}
+
+          {data.raw_risk_drifts && data.raw_risk_drifts.length > 0 && (
+            <Box mt={2}>
+              <Typography variant="subtitle2">Raw Risk Drifts:</Typography>
+              <TableContainer component={Paper} sx={{ mt: 1, maxHeight: 200, overflowY: 'auto' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Sector</TableCell>
+                      <TableCell>Actual</TableCell>
+                      <TableCell>Model</TableCell>
+                      <TableCell>Drift</TableCell>
+                      <TableCell>Threshold</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {data.raw_risk_drifts.map((drift, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{drift.sector}</TableCell>
+                        <TableCell>{drift.actual?.toFixed(4)}</TableCell>
+                        <TableCell>{drift.model?.toFixed(4)}</TableCell>
+                        <TableCell>{drift.drift?.toFixed(4)}</TableCell>
+                        <TableCell>{drift.threshold?.toFixed(4)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </Box>
+      );
+    }
+
+    return <Typography>Invalid data type for rendering.</Typography>;
   };
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Loading portfolio details...</Typography>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        {error}
-      </Alert>
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          Error: {error.message}. Please try again or check if the portfolio exists.
+          <Button onClick={() => navigate('/')} sx={{ ml: 2 }}>Go Back Home</Button>
+        </Alert>
+      </Box>
     );
   }
 
   if (!portfolio) {
     return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Portfolio details not found.
-      </Alert>
+      <Box sx={{ p: 3 }}>
+        <Alert severity="info">
+          No portfolio data found for {clientId}/{portfolioId}.
+          <Button onClick={() => navigate('/')} sx={{ ml: 2 }}>Go Back Home</Button>
+        </Alert>
+      </Box>
     );
   }
 
   return (
     <Box sx={{ p: 3 }}>
       <Button
-        variant="outlined"
         startIcon={<ArrowBackIcon />}
-        onClick={() => navigate('/')}
+        onClick={() => navigate(-1)}
+        variant="outlined"
         sx={{ mb: 3 }}
       >
-        Back to Dashboard
+        Back to Portfolios
       </Button>
 
       <Typography variant="h4" component="h1" gutterBottom>
-        Portfolio Details: {portfolio.client_id}/{portfolio.portfolio_id}
-      </Typography>
-      <Typography variant="subtitle1" gutterBottom>
-        Date: {new Date(portfolio.date).toLocaleDateString()} | Uploaded At: {new Date(portfolio.uploaded_at).toLocaleString()}
+        Portfolio Details: {clientId}/{portfolioId}
       </Typography>
 
       <Box sx={{ width: '100%', typography: 'body1', mt: 3 }}>
         <TabContext value={currentTab}>
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <TabList onChange={handleTabChange} aria-label="portfolio details tabs">
+            <TabList onChange={handleChangeTab} aria-label="portfolio details tabs">
               <Tab label="Summary" value="summary" />
               <Tab label="Positions" value="positions" />
               <Tab label="Trades" value="trades" />
               <Tab label="Compliance Report" value="compliance_report_tab" /> {/* Renamed for clarity */}
+              <Tab label="Historical Reports" value="historical_reports" /> {/* NEW TAB */}
             </TabList>
           </Box>
 
@@ -256,6 +315,40 @@ function PortfolioDetail() {
           <TabPanel value="compliance_report_tab">
             <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Compliance Report</Typography>
             {renderData(portfolio.compliance_report, 'compliance_report_display')}
+          </TabPanel>
+
+          {/* NEW TabPanel for Historical Reports */}
+          <TabPanel value="historical_reports">
+            <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Historical Compliance Reports</Typography>
+            {historicalReports.length > 0 ? (
+              <Box>
+                {historicalReports.map((report, index) => (
+                  <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Report Date: {new Date(report.uploaded_at || report.date).toLocaleString()}
+                    </Typography>
+                    {report.compliance_report && (
+                      <Box sx={{ ml: 2, mt: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          **Policy Violations Summary:** {report.compliance_report.policy_violations_summary || 'N/A'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          **Risk Drifts Summary:** {report.compliance_report.risk_drifts_summary || 'N/A'}
+                        </Typography>
+                        {/* You can add more details from raw_policy_violations or raw_risk_drifts if needed */}
+                      </Box>
+                    )}
+                    {!report.compliance_report && (
+                      <Typography variant="body2" color="error">
+                        Compliance report data not available for this record.
+                      </Typography>
+                    )}
+                  </Paper>
+                ))}
+              </Box>
+            ) : (
+              <Typography>No historical reports available for this portfolio.</Typography>
+            )}
           </TabPanel>
         </TabContext>
       </Box>
