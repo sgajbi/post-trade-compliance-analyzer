@@ -90,7 +90,7 @@ function PortfolioDetail() {
 
     // Special handling for the 'summary' type to format specific fields
     if (type === 'summary') {
-        const summaryKeys = Object.keys(data).filter(key => key !== 'id'); // Exclude the internal 'id' from summary view
+        const summaryKeys = Object.keys(data).filter(key => key !== 'id' && key !== '_id'); // Exclude the internal 'id' from summary view
         return (
             <TableContainer component={Paper} sx={{ mt: 2 }}>
                 <Table size="small">
@@ -132,7 +132,19 @@ function PortfolioDetail() {
         );
     }
 
-    // Generic rendering for arrays of objects (used for 'positions', 'trades', 'compliance_checks' tabs)
+    // NEW: Special handling for 'compliance_report' type to display the string directly
+    if (type === 'compliance_report_display') {
+        return (
+            <Box sx={{ mt: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: '4px', backgroundColor: '#f9f9f9' }}>
+                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, padding: 0 }}>
+                    {String(data)}
+                </pre>
+            </Box>
+        );
+    }
+
+
+    // Generic rendering for arrays of objects (used for 'positions', 'trades')
     const getColumns = () => {
         const keys = Object.keys(data[0]).filter(key => key !== 'id' && key !== '_id'); // Filter out internal IDs
         return keys.map(key => ({ key, label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }));
@@ -221,7 +233,7 @@ function PortfolioDetail() {
               <Tab label="Summary" value="summary" />
               <Tab label="Positions" value="positions" />
               <Tab label="Trades" value="trades" />
-              <Tab label="Compliance Checks" value="compliance_checks" />
+              <Tab label="Compliance Report" value="compliance_report_tab" /> {/* Renamed for clarity */}
             </TabList>
           </Box>
 
@@ -240,9 +252,10 @@ function PortfolioDetail() {
             {renderData(portfolio.trades, 'trades')}
           </TabPanel>
 
-          <TabPanel value="compliance_checks">
-            <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Compliance Checks</Typography>
-            {renderData(portfolio.compliance_checks, 'compliance_checks')}
+          {/* Updated TabPanel to display compliance_report */}
+          <TabPanel value="compliance_report_tab">
+            <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Compliance Report</Typography>
+            {renderData(portfolio.compliance_report, 'compliance_report_display')}
           </TabPanel>
         </TabContext>
       </Box>
