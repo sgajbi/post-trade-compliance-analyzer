@@ -17,10 +17,14 @@ import {
   Tab,
   Snackbar,
   Paper,
-  List, // Added for better list rendering
-  ListItem, // Added for better list rendering
-  Divider // Added for visual separation
+  List,
+  ListItem,
+  Divider,
+  Accordion, 
+  AccordionSummary, 
+  AccordionDetails 
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'; 
 import MuiAlert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import TabContext from '@mui/lab/TabContext';
@@ -41,7 +45,6 @@ function PortfolioDetail() {
   const [error, setError] = useState(null);
   const [currentTab, setCurrentTab] = useState('summary');
 
-  // New state for historical reports
   const [historicalReports, setHistoricalReports] = useState([]); 
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -82,7 +85,6 @@ function PortfolioDetail() {
     fetchPortfolioDetails();
   }, [clientId, portfolioId]);
 
-  // New useEffect to fetch historical reports
   useEffect(() => {
     const fetchHistoricalReports = async () => {
       if (!clientId || !portfolioId) return;
@@ -96,13 +98,12 @@ function PortfolioDetail() {
         setHistoricalReports(data);
       } catch (error) {
         console.error("Error fetching historical reports:", error);
-        // Optionally, set an error state for historical reports specifically
         showSnackbar(`Error fetching historical reports: ${error.message}`, 'error');
       }
     };
 
     fetchHistoricalReports();
-  }, [clientId, portfolioId]); // Re-fetch when client or portfolio ID changes
+  }, [clientId, portfolioId]);
 
 
   const handleChangeTab = (event, newValue) => {
@@ -145,7 +146,7 @@ function PortfolioDetail() {
       if (data.length === 0) {
         return <Typography>No {type} available.</Typography>;
       }
-      const headers = Object.keys(data[0]).filter(key => key !== 'id' && key !== '_id'); // Filter out internal IDs
+      const headers = Object.keys(data[0]).filter(key => key !== 'id' && key !== '_id');
       return (
         <TableContainer component={Paper}>
           <Table size="small">
@@ -174,7 +175,6 @@ function PortfolioDetail() {
       );
     }
 
-    // Special rendering for compliance_report_display
     if (type === 'compliance_report_display') {
       if (!data) {
         return <Typography>No compliance report available.</Typography>;
@@ -295,7 +295,7 @@ function PortfolioDetail() {
           No portfolio data found for {clientId}/{portfolioId}.
           <Button onClick={() => navigate('/')} sx={{ ml: 2 }}>Go Back Home</Button>
         </Alert>
-      </Box>
+      </Box> 
     );
   }
 
@@ -321,8 +321,8 @@ function PortfolioDetail() {
               <Tab label="Summary" value="summary" />
               <Tab label="Positions" value="positions" />
               <Tab label="Trades" value="trades" />
-              <Tab label="Compliance Report" value="compliance_report_tab" /> {/* Renamed for clarity */}
-              <Tab label="Historical Reports" value="historical_reports" /> {/* NEW TAB */}
+              <Tab label="Compliance Report" value="compliance_report_tab" />
+              <Tab label="Historical Reports" value="historical_reports" />
             </TabList>
           </Box>
 
@@ -341,12 +341,11 @@ function PortfolioDetail() {
             {renderData(portfolio.trades, 'trades')}
           </TabPanel>
 
-          {/* Updated TabPanel to display compliance_report */}
           <TabPanel value="compliance_report_tab">
             {renderData(portfolio.compliance_report, 'compliance_report_display')}
           </TabPanel>
 
-          {/* NEW TabPanel for Historical Reports */}
+          {/* IMPROVED TabPanel for Historical Reports with Collapsible Sections */}
           <TabPanel value="historical_reports">
             <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Historical Compliance Reports</Typography>
             {historicalReports.length > 0 ? (
@@ -356,19 +355,87 @@ function PortfolioDetail() {
                     <Typography variant="subtitle1" gutterBottom>
                       Report Date: {new Date(report.uploaded_at || report.date).toLocaleString()}
                     </Typography>
-                    {report.compliance_report && (
+                    {report.compliance_report ? (
                       <Box sx={{ ml: 2, mt: 1 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          **Policy Violations Summary:** {report.compliance_report.policy_violations_summary || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          **Risk Drifts Summary:** {report.compliance_report.risk_drifts_summary || 'N/A'}
-                        </Typography>
-                        {/* You can add more details from raw_policy_violations or raw_risk_drifts if needed */}
+                        {/* Policy Violations for Historical */}
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Policy Violations:</Typography>
+                        {report.compliance_report.policy_violations_summary ? (
+                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', ml: 1 }}>
+                            {report.compliance_report.policy_violations_summary}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No policy violations detected.</Typography>
+                        )}
+                        
+                        {report.compliance_report.raw_policy_violations && report.compliance_report.raw_policy_violations.length > 0 && (
+                          <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}pvh-content`} id={`panel${index}pvh-header`}>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Policy Violations ({report.compliance_report.raw_policy_violations.length})</Typography>
+                            </AccordionSummary> {/* MISSING CLOSING TAG ADDED HERE */}
+                            <AccordionDetails>
+                              <List dense sx={{ ml: 1 }}>
+                                {report.compliance_report.raw_policy_violations.map((violation, vIdx) => (
+                                  <ListItem key={vIdx} sx={{ py: 0 }}>
+                                    <Typography variant="body2" color="text.secondary">- {violation}</Typography>
+                                  </ListItem>
+                                ))}
+                              </List>
+                            </AccordionDetails>
+                          </Accordion>
+                        )}
+                        <Divider sx={{ my: 1 }} />
+
+                        {/* Risk Drifts for Historical */}
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 2 }}>Risk Drifts:</Typography>
+                        {report.compliance_report.risk_drifts_summary ? (
+                          <List dense sx={{ ml: 1 }}>
+                            {report.compliance_report.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, dIdx) => (
+                              <ListItem key={dIdx} sx={{ py: 0 }}>
+                                <Typography variant="body2" color="text.secondary">- {driftSummary.trim()}</Typography>
+                              </ListItem>
+                            ))}
+                          </List>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No significant risk drifts identified.</Typography>
+                        )}
+                        
+                        {report.compliance_report.raw_risk_drifts && report.compliance_report.raw_risk_drifts.length > 0 && (
+                          <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}rdh-content`} id={`panel${index}rdh-header`}>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Risk Drifts ({report.compliance_report.raw_risk_drifts.length})</Typography>
+                            </AccordionSummary> {/* MISSING CLOSING TAG ADDED HERE */}
+                            <AccordionDetails>
+                              <TableContainer component={Paper} elevation={0} sx={{ mt: 1, maxHeight: 150, overflowY: 'auto' }}>
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>Sector</TableCell>
+                                      <TableCell>Actual</TableCell>
+                                      <TableCell>Model</TableCell>
+                                      <TableCell>Drift</TableCell>
+                                      <TableCell>Threshold</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {report.compliance_report.raw_risk_drifts.map((drift, dIdx) => (
+                                      <TableRow key={dIdx}>
+                                        <TableCell>{drift.sector}</TableCell>
+                                        <TableCell>{drift.actual?.toFixed(4)}</TableCell>
+                                        <TableCell>{drift.model?.toFixed(4)}</TableCell>
+                                        <TableCell>{drift.drift?.toFixed(4)}</TableCell>
+                                        <TableCell>{drift.threshold?.toFixed(4)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </TableContainer>
+                            </AccordionDetails>
+                          </Accordion>
+                        )}
+
                       </Box>
-                    )}
-                    {!report.compliance_report && (
-                      <Typography variant="body2" color="error">
+                    ) : (
+                      <Typography variant="body2" color="error" sx={{ ml: 2 }}>
                         Compliance report data not available for this record.
                       </Typography>
                     )}
