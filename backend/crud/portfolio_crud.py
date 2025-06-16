@@ -2,6 +2,7 @@
 import logging
 from bson import ObjectId
 from db.mongo import portfolio_collection
+from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,30 +27,32 @@ async def create_portfolio_doc(portfolio_data: dict) -> str:
     return str(result.inserted_id)
 
 async def get_portfolio_doc_by_mongodb_id(mongo_id: str) -> dict | None:
-    """
-    Retrieves a single portfolio document by its MongoDB ObjectId.
-    Returns None if not found or if the ID is invalid.
-    """
+    """Retrieves a single portfolio document by its MongoDB ObjectId string."""
     try:
         object_id = ObjectId(mongo_id)
-        return await portfolio_collection.find_one({"_id": object_id})
     except Exception:
-        logger.warning(f"Invalid MongoDB ID format: {mongo_id}")
+        logger.warning(f"Invalid ID format for MongoDB query: {mongo_id}. Must be a valid ObjectId string.")
         return None
+    
+    doc = await portfolio_collection.find_one({"_id": object_id})
+    return doc
 
 async def get_portfolio_by_client_and_portfolio_id(client_id: str, portfolio_id: str) -> dict | None:
     """
-    Retrieves a single portfolio document using client_id and portfolio_id.
+    Retrieves the latest portfolio document for a given client and portfolio ID,
+    ordered by 'uploaded_at' in descending order.
     """
     logger.info(f"Attempting to retrieve portfolio for client '{client_id}', portfolio '{portfolio_id}'")
-    portfolio = await portfolio_collection.find_one(
+    doc = await portfolio_collection.find(
         {"client_id": client_id, "portfolio_id": portfolio_id}
-    )
-    if portfolio:
+    ).sort("uploaded_at", -1).limit(1).to_list(length=1) # Get the latest one
+
+    if doc:
         logger.info(f"Portfolio found for client '{client_id}', portfolio '{portfolio_id}'.")
+        return doc[0]
     else:
-        logger.warning(f"No portfolio found for client '{client_id}', portfolio '{portfolio_id}'.")
-    return portfolio
+        logger.info(f"No portfolio found for client '{client_id}', portfolio '{portfolio_id}'.")
+        return None
 
 async def update_portfolio_doc(mongo_id: str, update_data: dict) -> bool:
     """
@@ -85,3 +88,18 @@ async def get_trades_from_portfolio_doc(client_id: str, portfolio_id: str) -> li
     """
     doc = await get_portfolio_by_client_and_portfolio_id(client_id, portfolio_id)
     return doc.get("trades", []) if doc else []
+
+async def get_historical_portfolio_data(client_id: str, portfolio_id: str) -> list[dict]:
+    """
+    Retrieves historical portfolio documents for a given client and portfolio ID,
+    ordered by upload/analysis timestamp.
+    """
+    logger.info(f"Attempting to retrieve historical data for client '{client_id}', portfolio '{portfolio_id}'")
+    cursor = portfolio_collection.find(
+        {"client_id": client_id, "portfolio_id": portfolio_id},
+        {"compliance_report": 1, "uploaded_at": 1, "date": 1, "_id": 0} # Project only necessary fields
+    ).sort("uploaded_at", -1) # Sort by latest first, or by 'date' if 'uploaded_at' isn't always present
+
+    historical_data = await cursor.to_list(length=None)
+    logger.info(f"Retrieved {len(historical_data)} historical records for {client_id}/{portfolio_id}.")
+    return historical_data
