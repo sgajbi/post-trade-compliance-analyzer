@@ -47,7 +47,7 @@ def _calculate_positions_from_trades(trades: List[Dict]) -> List[Dict]:
         if symbol not in symbol_data:
             symbol_data[symbol] = {
                 "quantity": 0,
-                "prices": [], # To calculate average price, if needed
+                "total_cost": 0.0, # Initialize total cost for weighted average
                 "isin": "UNKNOWN", # Default placeholder
                 "sector": "UNKNOWN", # Default placeholder
                 "latest_price": 0.0 # Initialize latest_price for market_price placeholder
@@ -65,18 +65,26 @@ def _calculate_positions_from_trades(trades: List[Dict]) -> List[Dict]:
             if symbol_data[symbol]["sector"] == "UNKNOWN" and trade_sector:
                 symbol_data[symbol]["sector"] = trade_sector
 
+        # Calculate weighted average cost
         current_quantity = symbol_data[symbol]["quantity"]
+        current_total_cost = symbol_data[symbol]["total_cost"]
 
         if trade_type.upper() == "BUY":
             symbol_data[symbol]["quantity"] += quantity
             if trade_price is not None:
-                symbol_data[symbol]["prices"].append({"quantity": quantity, "price": trade_price})
+                symbol_data[symbol]["total_cost"] += (quantity * trade_price)
                 symbol_data[symbol]["latest_price"] = trade_price # Update latest price on BUY
         elif trade_type.upper() == "SELL":
+            # For SELL, reduce quantity. For average cost, we need to adjust total cost.
+            # A common approach is to reduce cost proportionally.
+            # This simplified model assumes selling reduces the average cost basis.
+            # In real systems, FIFO/LIFO/Specific ID might be used.
+            if current_quantity > 0:
+                cost_reduction = (quantity / current_quantity) * current_total_cost
+                symbol_data[symbol]["total_cost"] -= cost_reduction
             symbol_data[symbol]["quantity"] -= quantity
-            # Update latest price on SELL too, if desired, or keep only BUY price for 'market_price'
             if trade_price is not None:
-                symbol_data[symbol]["latest_price"] = trade_price
+                symbol_data[symbol]["latest_price"] = trade_price # Update latest price on SELL too, if desired
         else:
             logger.warning(f"Unknown trade type '{trade_type}' for symbol {symbol}. Skipping.")
 
@@ -84,12 +92,11 @@ def _calculate_positions_from_trades(trades: List[Dict]) -> List[Dict]:
     positions = []
     for symbol, data in symbol_data.items():
         total_quantity = data["quantity"]
+        total_cost = data["total_cost"]
         
         if total_quantity != 0: # Only include positions with non-zero quantity
-            total_value = sum(item["quantity"] * item["price"] for item in data["prices"] if item["price"] is not None)
-            total_bought_quantity = sum(item["quantity"] for item in data["prices"])
-            
-            avg_price = total_value / total_bought_quantity if total_bought_quantity > 0 else 0
+            # Calculate average price based on total_cost and total_quantity
+            avg_price = total_cost / total_quantity if total_quantity > 0 else 0.0
             
             # Use the latest_price captured from trades as a placeholder for market_price
             market_price = data["latest_price"] if data["latest_price"] != 0.0 else avg_price
