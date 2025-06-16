@@ -212,14 +212,23 @@ function PortfolioDetail() {
           )}
           <Divider sx={{ my: 2 }} />
 
-          {/* Risk Drifts */}
+          {/* Risk Drifts - IMPROVED RENDERING */}
           <Typography variant="h6" component="h4" gutterBottom>
             Risk Drifts
           </Typography>
           {data.risk_drifts_summary ? (
-            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-              {data.risk_drifts_summary}
-            </Typography>
+            <Box>
+              <Typography variant="body1" sx={{ mb: 1 }}>
+                Summary:
+              </Typography>
+              <List dense sx={{ ml: 2 }}>
+                {data.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, idx) => (
+                  <ListItem key={idx} sx={{ py: 0.5 }}>
+                    <Typography variant="body2">{driftSummary.trim()}</Typography>
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
           ) : (
             <Typography variant="body1" color="text.secondary">No significant risk drifts identified.</Typography>
           )}
