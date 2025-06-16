@@ -8,7 +8,7 @@ import logging
 from bson import ObjectId
 from chromadb.api import models
 from datetime import datetime
-from fastapi import HTTPException # Import HTTPException
+from fastapi import HTTPException
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -85,11 +85,14 @@ async def ingest_portfolio_analysis(client_id: str, portfolio_data: dict, analys
         logger.error(f"Error ingesting portfolio analysis for {client_id}/{portfolio_id}: {e}", exc_info=True)
         raise
 
-async def query_portfolio(client_id: str, portfolio_id: str, question: str) -> str:
+async def query_portfolio(client_id: str, portfolio_id: str, question: str, chat_history: list = None) -> str:
     """
     Queries the ChromaDB for information about a specific portfolio
-    and uses an LLM to answer a question based on the retrieved context.
+    and uses an LLM to answer a question based on the retrieved context and chat history.
     """
+    if chat_history is None:
+        chat_history = []
+
     try:
         collection = get_rag_collection()
         embedding_function = get_embedding_function()
@@ -98,15 +101,14 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str) -> s
         client_id_norm = client_id.strip().upper()
         portfolio_id_norm = portfolio_id.strip().upper()
 
-        # Generate embedding for the question
-        query_embedding = embedding_function([question])[0] # embedding_function returns a list of embeddings
+        # Generate embedding for the *current question only* for retrieval, as history is handled by LLM context
+        query_embedding = embedding_function([question])[0]
 
-        logger.info(f"Querying ChromaDB for portfolio {portfolio_id_norm} with question.")
+        logger.info(f"Querying ChromaDB for portfolio {portfolio_id_norm} with current question.")
 
-        # Corrected where clause for ChromaDB to filter by both client_id and portfolio_id
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=5, # Retrieve more results to form a richer context
+            n_results=5,
             where={
                 "$and": [
                     {"client_id": client_id_norm},
@@ -117,24 +119,47 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str) -> s
 
         context = ""
         if results and results["documents"]:
-            # Flatten the list of lists into a single list of documents, then join
-            # results["documents"] is a list of lists, where each inner list contains documents for a given query_embedding
-            # Since we have only one query_embedding, we take results["documents"][0]
             context = "\n".join(results["documents"][0])
 
         logger.debug(f"Context retrieved from ChromaDB for portfolio {portfolio_id_norm}: {context}")
 
         if not context:
             logger.warning(f"No relevant context found for portfolio {portfolio_id_norm} and question.")
-            return "No relevant information found for this portfolio and question."
+            # If no relevant context from RAG, try to answer based on chat history if available
+            if chat_history:
+                messages = [{"role": m["role"], "content": m["content"]} for m in chat_history]
+                messages.append({"role": "user", "content": question})
+                openai_api_key = os.getenv("OPENAI_API_KEY")
+                if not openai_api_key:
+                    logger.error("OPENAI_API_KEY environment variable not set.")
+                    raise Exception("OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable.")
 
-        prompt = f"""You are a compliance assistant. Based on the following portfolio report:
+                client = OpenAI(api_key=openai_api_key)
+                logger.info(f"Calling OpenAI GPT-4 with chat history for portfolio {portfolio_id_norm} (no RAG context).")
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=messages
+                )
+                answer = response.choices[0].message.content.strip()
+                logger.info(f"Successfully received answer from OpenAI (no RAG context) for portfolio {portfolio_id_norm}.")
+                return answer
+            else:
+                return "No relevant information found for this portfolio and question."
 
-{context}
+        # Prepare messages for OpenAI, including context and chat history
+        messages = [{"role": "system", "content": "You are a compliance assistant. Use the provided portfolio report and conversation history to answer the user's questions concisely and accurately."}]
 
-Answer the question: "{question}"
-"""
-        logger.debug(f"Generated prompt:\n{prompt}")
+        # Add retrieved context as part of the system message or as a separate message
+        messages.append({"role": "system", "content": f"Here is the relevant portfolio report information:\n{context}"})
+
+        # Append previous chat history
+        for message in chat_history:
+            messages.append({"role": message["role"], "content": message["content"]})
+
+        # Append the current question
+        messages.append({"role": "user", "content": question})
+
+        logger.debug(f"Generated messages for LLM:\n{messages}")
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
@@ -143,10 +168,10 @@ Answer the question: "{question}"
 
         client = OpenAI(api_key=openai_api_key)
 
-        logger.info(f"Calling OpenAI GPT-4 for portfolio {portfolio_id_norm}...")
+        logger.info(f"Calling OpenAI GPT-4 for portfolio {portfolio_id_norm} with RAG context and chat history...")
         response = client.chat.completions.create(
             model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
+            messages=messages
         )
 
         answer = response.choices[0].message.content.strip()
@@ -155,5 +180,4 @@ Answer the question: "{question}"
 
     except Exception as e:
         logger.error(f"Error during RAG query or OpenAI call for portfolio {client_id}/{portfolio_id}: {e}", exc_info=True)
-        # Ensure HTTPException is raised here as it was imported
         raise HTTPException(status_code=500, detail=f"Error processing RAG query: {e}")
