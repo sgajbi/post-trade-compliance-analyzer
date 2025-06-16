@@ -11,10 +11,10 @@ from services.portfolio_service import ( # Import service functions
 from crud.portfolio_crud import ( # Import CRUD functions for direct data retrieval
     get_portfolio_by_client_and_portfolio_id, # Corrected import name
     get_portfolio_doc_by_mongodb_id,
-    get_all_portfolio_docs,
+    get_all_portfolio_docs, # NEW: Import for listing all portfolios
     get_positions_from_portfolio_doc,
     get_trades_from_portfolio_doc,
-    get_historical_portfolio_data # NEW: Import for historical data
+    get_historical_portfolio_data # Import for historical data
 )
 from utils.serializers import serialize_portfolio_summary, serialize_portfolio_detail # For response serialization
 from datetime import datetime, date # Import datetime and date for type checking
@@ -119,7 +119,25 @@ async def get_portfolio_transactions(client_id: str, portfolio_id: str):
         return []
     return [Trade(**trade) for trade in trades_data]
 
-# NEW ENDPOINT: Get Historical Portfolio Data
+# Endpoint to get all portfolios (for the Home page)
+@router.get("/portfolios", response_model=List[Dict[str, Any]]) # Using Dict[str, Any] as the schema might vary
+async def get_all_portfolios():
+    logger.info("Endpoint: Fetching all portfolios.")
+    portfolios_data = await get_all_portfolio_docs()
+    
+    # Serialize ObjectId to string for all documents
+    for portfolio_doc in portfolios_data:
+        if "_id" in portfolio_doc:
+            portfolio_doc["_id"] = str(portfolio_doc["_id"])
+        # Ensure 'date' and 'uploaded_at' are ISO format strings if they are datetime objects
+        if isinstance(portfolio_doc.get("date"), date):
+            portfolio_doc["date"] = portfolio_doc["date"].isoformat()
+        if isinstance(portfolio_doc.get("uploaded_at"), datetime):
+            portfolio_doc["uploaded_at"] = portfolio_doc["uploaded_at"].isoformat()
+            
+    return portfolios_data
+
+# Get Historical Portfolio Data
 @router.get("/portfolio/{client_id}/{portfolio_id}/history", response_model=List[Dict[str, Any]])
 async def get_portfolio_history(client_id: str, portfolio_id: str):
     logger.info(f"Endpoint: Fetching historical data for portfolio {client_id}/{portfolio_id}")
@@ -132,9 +150,6 @@ async def get_portfolio_history(client_id: str, portfolio_id: str):
         return []
     
     # Ensure datetime objects are converted to ISO strings if necessary for JSON serialization
-    # This loop is a safeguard; get_historical_portfolio_data already projects simple fields,
-    # but if 'date' or 'uploaded_at' were ever retrieved as datetime objects from MongoDB directly
-    # without prior serialization, this ensures they are converted.
     for record in historical_data:
         if isinstance(record.get('uploaded_at'), datetime):
             record['uploaded_at'] = record['uploaded_at'].isoformat()
