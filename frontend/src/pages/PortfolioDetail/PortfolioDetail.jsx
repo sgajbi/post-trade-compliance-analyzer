@@ -16,7 +16,10 @@ import {
   Tabs,
   Tab,
   Snackbar,
-  Paper
+  Paper,
+  List, // Added for better list rendering
+  ListItem, // Added for better list rendering
+  Divider // Added for visual separation
 } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -178,34 +181,52 @@ function PortfolioDetail() {
       }
       return (
         <Box>
-          <Typography variant="subtitle1" gutterBottom>
-            **Policy Violations Summary:**
+          <Typography variant="h6" component="h3" gutterBottom sx={{ mt: 2, mb: 1 }}>
+            Compliance Report Summary
           </Typography>
-          <Typography variant="body2" sx={{ ml: 2, mb: 1 }}>
-            {data.policy_violations_summary || 'No policy violations detected.'}
-          </Typography>
+          <Divider sx={{ mb: 2 }} />
 
-          <Typography variant="subtitle1" gutterBottom>
-            **Risk Drifts Summary:**
+          {/* Policy Violations */}
+          <Typography variant="h6" component="h4" gutterBottom>
+            Policy Violations
           </Typography>
-          <Typography variant="body2" sx={{ ml: 2, mb: 1 }}>
-            {data.risk_drifts_summary || 'No significant risk drifts identified.'}
-          </Typography>
+          {data.policy_violations_summary ? (
+            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+              {data.policy_violations_summary}
+            </Typography>
+          ) : (
+            <Typography variant="body1" color="text.secondary">No policy violations detected.</Typography>
+          )}
 
           {data.raw_policy_violations && data.raw_policy_violations.length > 0 && (
             <Box mt={2}>
-              <Typography variant="subtitle2">Raw Policy Violations:</Typography>
-              <ul>
+              <Typography variant="subtitle2">Details:</Typography>
+              <List dense>
                 {data.raw_policy_violations.map((violation, idx) => (
-                  <li key={idx}><Typography variant="body2">{violation}</Typography></li>
+                  <ListItem key={idx} sx={{ py: 0.5 }}>
+                    <Typography variant="body2">{violation}</Typography>
+                  </ListItem>
                 ))}
-              </ul>
+              </List>
             </Box>
+          )}
+          <Divider sx={{ my: 2 }} />
+
+          {/* Risk Drifts */}
+          <Typography variant="h6" component="h4" gutterBottom>
+            Risk Drifts
+          </Typography>
+          {data.risk_drifts_summary ? (
+            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+              {data.risk_drifts_summary}
+            </Typography>
+          ) : (
+            <Typography variant="body1" color="text.secondary">No significant risk drifts identified.</Typography>
           )}
 
           {data.raw_risk_drifts && data.raw_risk_drifts.length > 0 && (
             <Box mt={2}>
-              <Typography variant="subtitle2">Raw Risk Drifts:</Typography>
+              <Typography variant="subtitle2">Details:</Typography>
               <TableContainer component={Paper} sx={{ mt: 1, maxHeight: 200, overflowY: 'auto' }}>
                 <Table size="small">
                   <TableHead>
@@ -313,7 +334,6 @@ function PortfolioDetail() {
 
           {/* Updated TabPanel to display compliance_report */}
           <TabPanel value="compliance_report_tab">
-            <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Compliance Report</Typography>
             {renderData(portfolio.compliance_report, 'compliance_report_display')}
           </TabPanel>
 
