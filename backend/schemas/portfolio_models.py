@@ -17,8 +17,8 @@ class Position(BaseModel):
     symbol: str
     quantity: float
     isin: str
-    avg_price: float
-    market_price: float
+    avg_price: float = 0.0  # Make optional with a default value
+    market_price: float = 0.0 # Make optional with a default value
     sector: str
     
 class Trade(BaseModel):

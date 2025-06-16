@@ -36,6 +36,8 @@ def _calculate_positions_from_trades(trades: List[Dict]) -> List[Dict]:
         # Extract ISIN and Sector from the trade, if provided
         trade_isin = trade.get("isin")
         trade_sector = trade.get("sector")
+        # Capture the latest trade price as a potential market price placeholder
+        latest_trade_price = trade.get("price")
 
 
         if not all([symbol, isinstance(quantity, (int, float)), trade_type]):
@@ -47,7 +49,8 @@ def _calculate_positions_from_trades(trades: List[Dict]) -> List[Dict]:
                 "quantity": 0,
                 "prices": [], # To calculate average price, if needed
                 "isin": "UNKNOWN", # Default placeholder
-                "sector": "UNKNOWN" # Default placeholder
+                "sector": "UNKNOWN", # Default placeholder
+                "latest_price": 0.0 # Initialize latest_price for market_price placeholder
             }
             # If this is the first trade for the symbol, use ISIN/Sector from it if available
             if trade_isin:
@@ -62,17 +65,18 @@ def _calculate_positions_from_trades(trades: List[Dict]) -> List[Dict]:
             if symbol_data[symbol]["sector"] == "UNKNOWN" and trade_sector:
                 symbol_data[symbol]["sector"] = trade_sector
 
-
         current_quantity = symbol_data[symbol]["quantity"]
 
         if trade_type.upper() == "BUY":
             symbol_data[symbol]["quantity"] += quantity
-            # For average price, a more complex calculation is needed, but for now, just record prices
             if trade_price is not None:
                 symbol_data[symbol]["prices"].append({"quantity": quantity, "price": trade_price})
+                symbol_data[symbol]["latest_price"] = trade_price # Update latest price on BUY
         elif trade_type.upper() == "SELL":
             symbol_data[symbol]["quantity"] -= quantity
-            # For simplicity, not adjusting average price on sell here, but a real system would
+            # Update latest price on SELL too, if desired, or keep only BUY price for 'market_price'
+            if trade_price is not None:
+                symbol_data[symbol]["latest_price"] = trade_price
         else:
             logger.warning(f"Unknown trade type '{trade_type}' for symbol {symbol}. Skipping.")
 
@@ -82,22 +86,20 @@ def _calculate_positions_from_trades(trades: List[Dict]) -> List[Dict]:
         total_quantity = data["quantity"]
         
         if total_quantity != 0: # Only include positions with non-zero quantity
-            # Simple average price calculation (can be improved)
             total_value = sum(item["quantity"] * item["price"] for item in data["prices"] if item["price"] is not None)
             total_bought_quantity = sum(item["quantity"] for item in data["prices"])
             
             avg_price = total_value / total_bought_quantity if total_bought_quantity > 0 else 0
             
-            # Placeholder for market_price - can use avg_price or the latest trade price for simplicity
-            # For a real system, market_price would come from a separate data source
-            market_price = avg_price # Using avg_price as a simple placeholder for market_price for now
+            # Use the latest_price captured from trades as a placeholder for market_price
+            market_price = data["latest_price"] if data["latest_price"] != 0.0 else avg_price
 
             positions.append({
                 "symbol": symbol,
                 "quantity": total_quantity,
                 "isin": data["isin"], # Use provided ISIN or default
                 "avg_price": avg_price,
-                "market_price": market_price,
+                "market_price": market_price, # Now uses latest trade price or avg if no trades with price
                 "sector": data["sector"] # Use provided Sector or default
             })
 
