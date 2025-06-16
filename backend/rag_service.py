@@ -1,3 +1,4 @@
+# rag_service.py
 import chromadb
 from chromadb.utils import embedding_functions
 from sentence_transformers import SentenceTransformer
@@ -6,7 +7,8 @@ import os
 import logging
 from bson import ObjectId
 from chromadb.api import models
-from datetime import datetime # Added this import
+from datetime import datetime
+from fastapi import HTTPException # Import HTTPException
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -104,7 +106,7 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str) -> s
         # Corrected where clause for ChromaDB to filter by both client_id and portfolio_id
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=1, # Retrieve the top 1 most relevant document
+            n_results=5, # Retrieve more results to form a richer context
             where={
                 "$and": [
                     {"client_id": client_id_norm},
@@ -115,12 +117,12 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str) -> s
 
         context = ""
         if results and results["documents"]:
-            # Join the documents to form the context for the LLM
-            context = "\n".join(results["documents"][0]) # Assuming documents[0] is a list of strings
+            # Flatten the list of lists into a single list of documents, then join
+            # results["documents"] is a list of lists, where each inner list contains documents for a given query_embedding
+            # Since we have only one query_embedding, we take results["documents"][0]
+            context = "\n".join(results["documents"][0])
 
-        logger.debug(f"Context retrieved from ChromaDB for portfolio {portfolio_id_norm} with question.")
-
-        logger.debug(f"Context provided to LLM for portfolio {portfolio_id_norm}:\\n{context}")
+        logger.debug(f"Context retrieved from ChromaDB for portfolio {portfolio_id_norm}: {context}")
 
         if not context:
             logger.warning(f"No relevant context found for portfolio {portfolio_id_norm} and question.")
@@ -132,7 +134,7 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str) -> s
 
 Answer the question: "{question}"
 """
-        logger.debug(f"Generated prompt:\\n{prompt}")
+        logger.debug(f"Generated prompt:\n{prompt}")
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
@@ -153,4 +155,5 @@ Answer the question: "{question}"
 
     except Exception as e:
         logger.error(f"Error during RAG query or OpenAI call for portfolio {client_id}/{portfolio_id}: {e}", exc_info=True)
+        # Ensure HTTPException is raised here as it was imported
         raise HTTPException(status_code=500, detail=f"Error processing RAG query: {e}")
