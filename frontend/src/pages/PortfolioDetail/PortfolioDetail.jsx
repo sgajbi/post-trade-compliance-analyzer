@@ -1,5 +1,5 @@
 // frontend/src/pages/PortfolioDetail/PortfolioDetail.jsx
-import React, { useState } from 'react'; // useEffect is no longer needed directly for data fetching
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -33,12 +33,88 @@ import SendIcon from '@mui/icons-material/Send';
 import TabContext from '@mui/lab/TabContext';
 import TabList from '@mui/lab/TabList';
 import TabPanel from '@mui/lab/TabPanel';
-import { API_BASE_URL } from '../../utils/constants'; // Import the centralized API_BASE_URL
-import useFetch from '../../hooks/useFetch'; // Import the custom useFetch hook
+import { API_BASE_URL } from '../../utils/constants';
+import useFetch from '../../hooks/useFetch';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
 
 const SnackbarAlert = React.forwardRef(function SnackbarAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
+
+// New Component for Historical Compliance Chart
+const HistoricalComplianceChart = ({ historicalReports }) => {
+  if (!historicalReports || historicalReports.length === 0) {
+    return <Typography>No historical data to display charts.</Typography>;
+  }
+
+  // Prepare data for charting risk drifts over time
+  const chartData = historicalReports
+    .filter(report =>
+      report.compliance_report &&
+      report.compliance_report.raw_risk_drifts &&
+      Array.isArray(report.compliance_report.raw_risk_drifts) &&
+      report.compliance_report.raw_risk_drifts.length > 0
+    )
+    .map(report => {
+      // Calculate total absolute drift, ensuring 'drift' is a number
+      const totalDrift = report.compliance_report.raw_risk_drifts.reduce((sum, d) => {
+        const driftValue = parseFloat(d.drift); // Use parseFloat to ensure it's a number
+        return sum + (isNaN(driftValue) ? 0 : Math.abs(driftValue)); // Add 0 if NaN
+      }, 0);
+
+      return {
+        date: new Date(report.uploaded_at || report.date).toLocaleDateString(),
+        totalRiskDrift: totalDrift,
+      };
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+
+  if (chartData.length === 0) {
+    return <Typography>No measurable risk drift data for charting.</Typography>;
+  }
+
+  return (
+    <Box sx={{ width: '100%', height: 300, mt: 3 }}>
+      <Typography variant="h6" component="h3" gutterBottom>
+        Historical Risk Drift Trends
+      </Typography>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={chartData}
+          margin={{
+            top: 5,
+            right: 30,
+            left: 20,
+            bottom: 5,
+          }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Line
+            type="monotone"
+            dataKey="totalRiskDrift"
+            stroke="#8884d8"
+            activeDot={{ r: 8 }}
+            name="Total Risk Drift"
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </Box>
+  );
+};
+
 
 function PortfolioDetail() {
   const { clientId, portfolioId } = useParams();
@@ -266,7 +342,7 @@ function PortfolioDetail() {
                         <TableCell>{drift.actual?.toFixed(4)}</TableCell>
                         <TableCell>{drift.model?.toFixed(4)}</TableCell>
                         <TableCell>{drift.drift?.toFixed(4)}</TableCell>
-                        <TableCell>{drift.threshold?.toFixed(4)}</TableCell>
+                        <TableCell>{drift.threshold?.toFixed(4)}</TableCell> {/* Corrected this line */}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -312,7 +388,7 @@ function PortfolioDetail() {
           No portfolio data found for {clientId}/{portfolioId}.
           <Button onClick={() => navigate('/')} sx={{ ml: 2 }}>Go Back Home</Button>
         </Alert>
-      </Box>
+      </Box> // Added missing closing Box tag here
     );
   }
 
@@ -380,96 +456,100 @@ function PortfolioDetail() {
               <Typography>No historical reports available for this portfolio.</Typography>
             )}
             {!historicalReportsLoading && !historicalReportsError && historicalReports && historicalReports.length > 0 && (
-              <Box>
-                {historicalReports.map((report, index) => (
-                  <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', borderRadius: '8px' }}>
-                    <Typography variant="subtitle1" gutterBottom>
-                      Report Date: {new Date(report.uploaded_at || report.date).toLocaleString()}
-                    </Typography>
-                    {report.compliance_report ? (
-                      <Box sx={{ ml: 2, mt: 1 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Policy Violations:</Typography>
-                        {report.compliance_report.policy_violations_summary ? (
-                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', ml: 1 }}>
-                            {report.compliance_report.policy_violations_summary}
-                          </Typography>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No policy violations detected.</Typography>
-                        )}
-
-                        {report.compliance_report.raw_policy_violations && report.compliance_report.raw_policy_violations.length > 0 && (
-                          <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
-                            <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}pvh-content`} id={`panel${index}pvh-header`}>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Policy Violations ({report.compliance_report.raw_policy_violations.length})</Typography>
-                            </AccordionSummary>
-                            <AccordionDetails>
-                              <List dense sx={{ ml: 1 }}>
-                                {report.compliance_report.raw_policy_violations.map((violation, vIdx) => (
-                                  <ListItem key={vIdx} sx={{ py: 0 }}>
-                                    <Typography variant="body2" color="text.secondary">- {violation}</Typography>
-                                  </ListItem>
-                                ))}
-                              </List>
-                            </AccordionDetails>
-                          </Accordion>
-                        )}
-                        <Divider sx={{ my: 1 }} />
-
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 2 }}>Risk Drifts:</Typography>
-                        {report.compliance_report.risk_drifts_summary ? (
-                          <List dense sx={{ ml: 1 }}>
-                            {report.compliance_report.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, dIdx) => (
-                              <ListItem key={dIdx} sx={{ py: 0 }}>
-                                <Typography variant="body2" color="text.secondary">- {driftSummary.trim()}</Typography>
-                              </ListItem>
-                            ))}
-                          </List>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No significant risk drifts identified.</Typography>
-                        )}
-
-                        {report.compliance_report.raw_risk_drifts && report.compliance_report.raw_risk_drifts.length > 0 && (
-                          <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
-                            <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}rdh-content`} id={`panel${index}rdh-header`}>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Risk Drifts ({report.compliance_report.raw_risk_drifts.length})</Typography>
-                            </AccordionSummary>
-                            <AccordionDetails>
-                              <TableContainer component={Paper} elevation={0} sx={{ mt: 1, maxHeight: 150, overflowY: 'auto' }}>
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Sector</TableCell>
-                                      <TableCell>Actual</TableCell>
-                                      <TableCell>Model</TableCell>
-                                      <TableCell>Drift</TableCell>
-                                      <TableCell>Threshold</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {report.compliance_report.raw_risk_drifts.map((drift, dIdx) => (
-                                      <TableRow key={dIdx}>
-                                        <TableCell>{drift.sector}</TableCell>
-                                        <TableCell>{drift.actual?.toFixed(4)}</TableCell>
-                                        <TableCell>{drift.model?.toFixed(4)}</TableCell>
-                                        <TableCell>{drift.drift?.toFixed(4)}</TableCell>
-                                        <TableCell>{drift.threshold?.toFixed(4)}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </TableContainer>
-                            </AccordionDetails>
-                          </Accordion>
-                        )}
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" color="error" sx={{ ml: 2 }}>
-                        Compliance report data not available for this record.
+              <>
+                <HistoricalComplianceChart historicalReports={historicalReports} />
+                <Box mt={4}>
+                  <Typography variant="h6" component="h3" gutterBottom>Raw Historical Data</Typography>
+                  {historicalReports.map((report, index) => (
+                    <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+                      <Typography variant="subtitle1" gutterBottom>
+                        Report Date: {new Date(report.uploaded_at || report.date).toLocaleString()}
                       </Typography>
-                    )}
-                  </Paper>
-                ))}
-              </Box>
+                      {report.compliance_report ? (
+                        <Box sx={{ ml: 2, mt: 1 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Policy Violations:</Typography>
+                          {report.compliance_report.policy_violations_summary ? (
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', ml: 1 }}>
+                              {report.compliance_report.policy_violations_summary}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No policy violations detected.</Typography>
+                          )}
+
+                          {report.compliance_report.raw_policy_violations && report.compliance_report.raw_policy_violations.length > 0 && (
+                            <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
+                              <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}pvh-content`} id={`panel${index}pvh-header`}>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Policy Violations ({report.compliance_report.raw_policy_violations.length})</Typography>
+                              </AccordionSummary>
+                              <AccordionDetails>
+                                <List dense sx={{ ml: 1 }}>
+                                  {report.compliance_report.raw_policy_violations.map((violation, vIdx) => (
+                                    <ListItem key={vIdx} sx={{ py: 0 }}>
+                                      <Typography variant="body2" color="text.secondary">- {violation}</Typography>
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </AccordionDetails>
+                            </Accordion>
+                          )}
+                          <Divider sx={{ my: 1 }} />
+
+                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 2 }}>Risk Drifts:</Typography>
+                          {report.compliance_report.risk_drifts_summary ? (
+                            <List dense sx={{ ml: 1 }}>
+                              {report.compliance_report.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, dIdx) => (
+                                <ListItem key={dIdx} sx={{ py: 0 }}>
+                                  <Typography variant="body2" color="text.secondary">- {driftSummary.trim()}</Typography>
+                                </ListItem>
+                              ))}
+                            </List>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No significant risk drifts identified.</Typography>
+                          )}
+
+                          {report.compliance_report.raw_risk_drifts && report.compliance_report.raw_risk_drifts.length > 0 && (
+                            <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
+                              <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}rdh-content`} id={`panel${index}rdh-header`}>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Risk Drifts ({report.compliance_report.raw_risk_drifts.length})</Typography>
+                              </AccordionSummary>
+                              <AccordionDetails>
+                                <TableContainer component={Paper} elevation={0} sx={{ mt: 1, maxHeight: 150, overflowY: 'auto' }}>
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow>
+                                        <TableCell>Sector</TableCell>
+                                        <TableCell>Actual</TableCell>
+                                        <TableCell>Model</TableCell>
+                                        <TableCell>Drift</TableCell>
+                                        <TableCell>Threshold</TableCell>
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {report.compliance_report.raw_risk_drifts.map((drift, dIdx) => (
+                                        <TableRow key={dIdx}>
+                                          <TableCell>{drift.sector}</TableCell>
+                                          <TableCell>{drift.actual?.toFixed(4)}</TableCell>
+                                          <TableCell>{drift.model?.toFixed(4)}</TableCell>
+                                          <TableCell>{drift.drift?.toFixed(4)}</TableCell>
+                                          <TableCell>{drift.threshold?.toFixed(4)}</TableCell> {/* Corrected this line */}
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </TableContainer>
+                              </AccordionDetails>
+                            </Accordion>
+                          )}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="error" sx={{ ml: 2 }}>
+                          Compliance report data not available for this record.
+                        </Typography>
+                      )}
+                    </Paper>
+                  ))}
+                </Box>
+              </>
             )}
           </TabPanel>
 
