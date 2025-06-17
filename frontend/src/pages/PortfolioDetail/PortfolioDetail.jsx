@@ -43,20 +43,22 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 
 const SnackbarAlert = React.forwardRef(function SnackbarAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
-// New Component for Historical Compliance Chart
+// Component for Historical Compliance Chart
 const HistoricalComplianceChart = ({ historicalReports }) => {
   if (!historicalReports || historicalReports.length === 0) {
     return <Typography>No historical data to display charts.</Typography>;
   }
 
-  // Prepare data for charting risk drifts over time
   const chartData = historicalReports
     .filter(report =>
       report.compliance_report &&
@@ -65,10 +67,9 @@ const HistoricalComplianceChart = ({ historicalReports }) => {
       report.compliance_report.raw_risk_drifts.length > 0
     )
     .map(report => {
-      // Calculate total absolute drift, ensuring 'drift' is a number
       const totalDrift = report.compliance_report.raw_risk_drifts.reduce((sum, d) => {
-        const driftValue = parseFloat(d.drift); // Use parseFloat to ensure it's a number
-        return sum + (isNaN(driftValue) ? 0 : Math.abs(driftValue)); // Add 0 if NaN
+        const driftValue = parseFloat(d.drift);
+        return sum + (isNaN(driftValue) ? 0 : Math.abs(driftValue));
       }, 0);
 
       return {
@@ -76,7 +77,7 @@ const HistoricalComplianceChart = ({ historicalReports }) => {
         totalRiskDrift: totalDrift,
       };
     })
-    .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   if (chartData.length === 0) {
     return <Typography>No measurable risk drift data for charting.</Typography>;
@@ -115,6 +116,63 @@ const HistoricalComplianceChart = ({ historicalReports }) => {
   );
 };
 
+// Modified Component for Asset Allocation Chart (by Sector)
+const AssetAllocationChart = ({ positions }) => {
+  if (!positions || positions.length === 0) {
+    return <Typography>No position data to display asset allocation.</Typography>;
+  }
+
+  // Aggregate market value by sector
+  const aggregatedData = positions.reduce((acc, position) => {
+    const sector = position.sector || 'Unknown'; // Use 'sector' field, fallback to 'Unknown'
+    const marketValue = parseFloat(position.market_value);
+
+    if (!isNaN(marketValue)) {
+      acc[sector] = (acc[sector] || 0) + marketValue;
+    }
+    return acc;
+  }, {});
+
+  const chartData = Object.keys(aggregatedData).map(sector => ({
+    name: sector,
+    value: aggregatedData[sector],
+  }));
+
+  if (chartData.length === 0) {
+    return <Typography>No valid sector allocation data for charting.</Typography>;
+  }
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF194F', '#82ca9d', '#ffc658'];
+
+  return (
+    <Box sx={{ width: '100%', height: 300, mt: 3 }}>
+      <Typography variant="h6" component="h3" gutterBottom>
+        Asset Allocation by Sector
+      </Typography>
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={chartData}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            outerRadius={100}
+            fill="#8884d8"
+            dataKey="value"
+            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+          >
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
+    </Box>
+  );
+};
+
 
 function PortfolioDetail() {
   const { clientId, portfolioId } = useParams();
@@ -125,19 +183,16 @@ function PortfolioDetail() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('info');
 
-  // New state for chat functionality
   const [chatHistory, setChatHistory] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Use the useFetch hook for portfolio details
   const {
     data: portfolio,
     loading: portfolioLoading,
     error: portfolioError
   } = useFetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/detail`);
 
-  // Use another useFetch hook for historical reports
   const {
     data: historicalReports,
     loading: historicalReportsLoading,
@@ -166,7 +221,7 @@ function PortfolioDetail() {
 
     const newUserMessage = { role: 'user', content: currentQuestion };
     setChatHistory(prevHistory => [...prevHistory, newUserMessage]);
-    setCurrentQuestion(''); // Clear input
+    setCurrentQuestion('');
 
     setChatLoading(true);
     try {
@@ -342,7 +397,7 @@ function PortfolioDetail() {
                         <TableCell>{drift.actual?.toFixed(4)}</TableCell>
                         <TableCell>{drift.model?.toFixed(4)}</TableCell>
                         <TableCell>{drift.drift?.toFixed(4)}</TableCell>
-                        <TableCell>{drift.threshold?.toFixed(4)}</TableCell> {/* Corrected this line */}
+                        <TableCell>{drift.threshold?.toFixed(4)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -357,7 +412,6 @@ function PortfolioDetail() {
     return <Typography>Invalid data type for rendering.</Typography>;
   };
 
-  // Combine loading and error states for main display
   const overallLoading = portfolioLoading || historicalReportsLoading;
   const overallError = portfolioError || historicalReportsError;
 
@@ -388,7 +442,7 @@ function PortfolioDetail() {
           No portfolio data found for {clientId}/{portfolioId}.
           <Button onClick={() => navigate('/')} sx={{ ml: 2 }}>Go Back Home</Button>
         </Alert>
-      </Box> // Added missing closing Box tag here
+      </Box>
     );
   }
 
@@ -427,7 +481,17 @@ function PortfolioDetail() {
 
           <TabPanel value="positions">
             <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Positions</Typography>
-            {renderData(portfolio.positions, 'positions')}
+            {portfolio.positions && portfolio.positions.length > 0 ? (
+              <>
+                <AssetAllocationChart positions={portfolio.positions} />
+                <Box mt={4}>
+                  <Typography variant="h6" component="h3" gutterBottom>Raw Position Data</Typography>
+                  {renderData(portfolio.positions, 'positions')}
+                </Box>
+              </>
+            ) : (
+              <Typography>No positions data available for charting or table display.</Typography>
+            )}
           </TabPanel>
 
           <TabPanel value="trades">
@@ -531,7 +595,7 @@ function PortfolioDetail() {
                                           <TableCell>{drift.actual?.toFixed(4)}</TableCell>
                                           <TableCell>{drift.model?.toFixed(4)}</TableCell>
                                           <TableCell>{drift.drift?.toFixed(4)}</TableCell>
-                                          <TableCell>{drift.threshold?.toFixed(4)}</TableCell> {/* Corrected this line */}
+                                          <TableCell>{drift.threshold?.toFixed(4)}</TableCell>
                                         </TableRow>
                                       ))}
                                     </TableBody>
