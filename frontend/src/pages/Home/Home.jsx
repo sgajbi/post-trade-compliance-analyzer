@@ -1,5 +1,5 @@
 // frontend/src/pages/Home/Home.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef } from 'react'; // useEffect is no longer needed directly for portfolio fetching
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Box,
@@ -21,17 +21,16 @@ import {
 } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import { API_BASE_URL } from '../../utils/constants'; // Import the centralized API_BASE_URL
+import useFetch from '../../hooks/useFetch'; // Import the custom useFetch hook
 
 const SnackbarAlert = React.forwardRef(function SnackbarAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
-// const API_BASE_URL = 'http://127.0.0.1:8000'; // Removed: Now imported from constants.js
-
 function Home() {
-  const [portfolios, setPortfolios] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Use the useFetch hook for portfolios data
+  const { data: portfolios, loading, error, refetch: refetchPortfolios } = useFetch(`${API_BASE_URL}/portfolios`);
+
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -53,29 +52,6 @@ function Home() {
     }
     setSnackbarOpen(false);
   };
-
-  const fetchPortfolios = async () => {
-    try {
-      setLoading(true);
-      setError(null); // Clear previous errors
-      const response = await fetch(`${API_BASE_URL}/portfolios`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setPortfolios(data);
-    } catch (e) {
-      console.error("Failed to fetch portfolios:", e);
-      setError(e.message || "Failed to load portfolios. Please ensure the backend is running."); // Set specific error message
-      showSnackbar(e.message || "Failed to load portfolios.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPortfolios();
-  }, []);
 
   const handleFileChange = (event) => {
     setFile(event.target.files[0]);
@@ -109,7 +85,7 @@ function Home() {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      fetchPortfolios(); // Refresh the list of portfolios
+      refetchPortfolios(); // Refresh the list of portfolios using the refetch function from useFetch
     } catch (e) {
       console.error("Error uploading portfolio:", e);
       showSnackbar(e.message || "Upload failed.", "error");
@@ -188,11 +164,11 @@ function Home() {
         </Alert>
       )}
 
-      {!loading && !error && portfolios.length === 0 && (
+      {!loading && !error && (!portfolios || portfolios.length === 0) && ( // Added check for !portfolios
         <Typography sx={{ mt: 2 }}>No portfolios found. Upload one to get started!</Typography>
       )}
 
-      {!loading && !error && portfolios.length > 0 && (
+      {!loading && !error && portfolios && portfolios.length > 0 && ( // Added check for portfolios
         <TableContainer component={Box} sx={{ mt: 4 }}>
           <Table sx={{ minWidth: 650 }} aria-label="portfolio table">
             <TableHead>
