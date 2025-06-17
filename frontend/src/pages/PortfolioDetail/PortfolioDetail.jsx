@@ -33,12 +33,13 @@ import SendIcon from '@mui/icons-material/Send'; // Import SendIcon
 import TabContext from '@mui/lab/TabContext';
 import TabList from '@mui/lab/TabList';
 import TabPanel from '@mui/lab/TabPanel';
+import { API_BASE_URL } from '../../utils/constants'; // Import the centralized API_BASE_URL
 
 const SnackbarAlert = React.forwardRef(function SnackbarAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
-const API_BASE_URL = 'http://127.0.0.1:8000'; // Ensure this matches your FastAPI backend URL
+// const API_BASE_URL = 'http://127.0.0.1:8000'; // Removed: Now imported from constants.js
 
 function PortfolioDetail() {
   const { clientId, portfolioId } = useParams();
@@ -124,7 +125,7 @@ function PortfolioDetail() {
     const newUserMessage = { role: 'user', content: currentQuestion };
     // Optimistically add user message to history
     // We update the state immediately to show the user their message
-    setChatHistory(prevHistory => [...prevHistory, newUserMessage]); 
+    setChatHistory(prevHistory => [...prevHistory, newUserMessage]);
     setCurrentQuestion(''); // Clear input
 
     setChatLoading(true);
