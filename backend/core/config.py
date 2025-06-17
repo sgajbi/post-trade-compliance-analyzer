@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     MONGO_DB_URL: str = "mongodb://localhost:27017/"
     MONGO_DB_NAME: str = "portfolio_analyzer_db"
     OPENAI_API_KEY: str # This should be set in your .env or environment variables
+    ENV: str = "development" # Added ENV setting with a default value
 
     # CORS settings - Consider making these more restrictive in production
     CORS_ALLOW_ORIGINS: list[str] = ["*"]
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Optional: Print loaded settings (for debugging during development)
-if os.getenv("ENV") == "development":
+if settings.ENV == "development": # Changed os.getenv to settings.ENV
     print("Loaded Settings:")
     for key, value in settings.model_dump().items():
         print(f"  {key}: {value}")
