@@ -1,6 +1,6 @@
 # backend/rag_service.py
 import chromadb
-from chromadb.utils import embedding_functions # Re-add this import
+from chromadb.utils import embedding_functions
 from openai import OpenAI
 import os
 import logging
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 _chroma_client = None
 _embedding_function = None
 _rag_collection = None
+_openai_client = None # Global variable for OpenAI client
 
 def set_rag_components(client: chromadb.PersistentClient, ef: embedding_functions.SentenceTransformerEmbeddingFunction, collection: models.Collection):
     """Sets the global ChromaDB client, embedding function, and collection."""
@@ -26,6 +27,12 @@ def set_rag_components(client: chromadb.PersistentClient, ef: embedding_function
     _embedding_function = ef
     _rag_collection = collection
     logger.info("RAG components (ChromaDB client, embedding function, collection) have been set.")
+
+def set_openai_client(client: OpenAI):
+    """Sets the global OpenAI client."""
+    global _openai_client
+    _openai_client = client
+    logger.info("OpenAI client has been set.")
 
 def get_chroma_client():
     if _chroma_client is None:
@@ -42,6 +49,18 @@ def get_rag_collection():
         raise RuntimeError("RAG collection not initialized. Ensure app startup event ran.")
     return _rag_collection
 
+def get_openai_client():
+    global _openai_client # <--- ADDED THIS LINE
+    if _openai_client is None:
+        # Fallback to direct instantiation if not set, for compatibility, but log a warning.
+        logger.warning("OpenAI client not explicitly initialized. Instantiating directly. Consider setting it via set_openai_client.")
+        openai_api_key = settings.OPENAI_API_KEY
+        if not openai_api_key:
+            logger.error("OPENAI_API_KEY environment variable not set in settings.")
+            raise Exception("OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment or .env file.")
+        _openai_client = OpenAI(api_key=openai_api_key)
+    return _openai_client
+
 async def ingest_portfolio_analysis(client_id: str, portfolio_data: dict, analysis_report: str, portfolio_id: str):
     """
     Ingests portfolio analysis and report into ChromaDB for RAG.
@@ -50,18 +69,15 @@ async def ingest_portfolio_analysis(client_id: str, portfolio_data: dict, analys
     logger.info(f"Ingesting analysis for portfolio {client_id}/{portfolio_id} into ChromaDB...")
     try:
         collection = get_rag_collection()
-        # embedding_function = get_embedding_function() # No longer needed here as embedding is handled by collection.add implicitly
 
         # Ensure _id is a string if it's an ObjectId for metadata
         if "_id" in portfolio_data and isinstance(portfolio_data["_id"], ObjectId):
             portfolio_data["_id"] = str(portfolio_data["_id"])
 
         # Create a unique ID for the document in ChromaDB
-        # Using a combination of client_id, portfolio_id, and a timestamp for uniqueness if re-ingested
         doc_id = f"{client_id}-{portfolio_id}-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
 
         # Combine relevant data into a single string for embedding
-        # This string will be the "document" content
         document_content = f"Client ID: {client_id}\n" \
                            f"Portfolio ID: {portfolio_id}\n" \
                            f"Compliance Report Summary: {analysis_report}\n" \
@@ -91,7 +107,7 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str, chat
 
     try:
         collection = get_rag_collection()
-        embedding_function = get_embedding_function() # Still needed here for direct query_embedding generation
+        embedding_function = get_embedding_function()
 
         # Normalize client_id and portfolio_id for consistent filtering
         client_id_norm = client_id.strip().upper()
@@ -123,16 +139,10 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str, chat
             logger.warning(f"No relevant context found for portfolio {portfolio_id_norm} and question.")
             # If no relevant context from RAG, try to answer based on chat history if available
             if chat_history:
+                client = get_openai_client() # Use the new getter
+                logger.info(f"Calling OpenAI GPT-4 with chat history for portfolio {portfolio_id_norm} (no RAG context).")
                 messages = [{"role": m["role"], "content": m["content"]} for m in chat_history]
                 messages.append({"role": "user", "content": question})
-                # Use settings.OPENAI_API_KEY
-                openai_api_key = settings.OPENAI_API_KEY
-                if not openai_api_key:
-                    logger.error("OPENAI_API_KEY environment variable not set in settings.")
-                    raise Exception("OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment or .env file.")
-
-                client = OpenAI(api_key=openai_api_key)
-                logger.info(f"Calling OpenAI GPT-4 with chat history for portfolio {portfolio_id_norm} (no RAG context).")
                 response = client.chat.completions.create(
                     model="gpt-4",
                     messages=messages
@@ -158,13 +168,7 @@ async def query_portfolio(client_id: str, portfolio_id: str, question: str, chat
 
         logger.debug(f"Generated messages for LLM:\n{messages}")
 
-        # Use settings.OPENAI_API_KEY
-        openai_api_key = settings.OPENAI_API_KEY
-        if not openai_api_key:
-            logger.error("OPENAI_API_KEY environment variable not set in settings.")
-            raise Exception("OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment or .env file.")
-
-        client = OpenAI(api_key=openai_api_key)
+        client = get_openai_client() # Use the new getter
 
         logger.info(f"Calling OpenAI GPT-4 for portfolio {portfolio_id_norm} with RAG context and chat history...")
         response = client.chat.completions.create(
