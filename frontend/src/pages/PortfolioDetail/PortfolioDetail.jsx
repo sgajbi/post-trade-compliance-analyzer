@@ -1,5 +1,5 @@
 // frontend/src/pages/PortfolioDetail/PortfolioDetail.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // useEffect is needed for side effects, e.g., pre-filling price
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -25,6 +25,13 @@ import {
   AccordionDetails,
   TextField,
   IconButton,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MuiAlert from '@mui/material/Alert';
@@ -49,6 +56,13 @@ import {
   Cell
 } from 'recharts';
 
+// For DatePicker
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import dayjs from 'dayjs';
+
+
 const SnackbarAlert = React.forwardRef(function SnackbarAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
@@ -67,14 +81,10 @@ const HistoricalComplianceChart = ({ historicalReports }) => {
       report.compliance_report.raw_risk_drifts.length > 0
     )
     .map(report => {
-      const totalDrift = report.compliance_report.raw_risk_drifts.reduce((sum, d) => {
-        const driftValue = parseFloat(d.drift);
-        return sum + (isNaN(driftValue) ? 0 : Math.abs(driftValue));
-      }, 0);
-
+      const totalDrift = parseFloat(report.compliance_report.total_risk_drift || 0); // Use total_risk_drift if available, else sum
       return {
         date: new Date(report.uploaded_at || report.date).toLocaleDateString(),
-        totalRiskDrift: totalDrift,
+        totalRiskDrift: isNaN(totalDrift) ? 0 : totalDrift,
       };
     })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -116,7 +126,7 @@ const HistoricalComplianceChart = ({ historicalReports }) => {
   );
 };
 
-// Modified Component for Asset Allocation Chart (by Sector)
+// Component for Asset Allocation Chart (by Sector)
 const AssetAllocationChart = ({ positions }) => {
   if (!positions || positions.length === 0) {
     return <Typography>No position data to display asset allocation.</Typography>;
@@ -124,7 +134,7 @@ const AssetAllocationChart = ({ positions }) => {
 
   // Aggregate market value by sector
   const aggregatedData = positions.reduce((acc, position) => {
-    const sector = position.sector || 'Unknown'; // Use 'sector' field, fallback to 'Unknown'
+    const sector = position.sector || 'Unknown';
     const marketValue = parseFloat(position.market_value);
 
     if (!isNaN(marketValue)) {
@@ -187,10 +197,22 @@ function PortfolioDetail() {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
+  // State for Add Trade Form
+  const [tradeForm, setTradeForm] = useState({
+    selectedProduct: '', // Stores the selected product object from productShelf
+    quantity: '',
+    price: '',
+    trade_date: dayjs(), // Initialize with current date using dayjs
+    type: 'BUY',
+  });
+  const [addingTrade, setAddingTrade] = useState(false);
+
+  // Fetch Hooks
   const {
     data: portfolio,
     loading: portfolioLoading,
-    error: portfolioError
+    error: portfolioError,
+    refetch: refetchPortfolio // Get refetch function
   } = useFetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/detail`);
 
   const {
@@ -198,6 +220,26 @@ function PortfolioDetail() {
     loading: historicalReportsLoading,
     error: historicalReportsError
   } = useFetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/history`);
+
+  const {
+    data: productShelf,
+    loading: productShelfLoading,
+    error: productShelfError
+  } = useFetch(`${API_BASE_URL}/product-shelf`);
+
+  // Effect to update trade form when a product is selected
+  useEffect(() => {
+    if (tradeForm.selectedProduct) {
+      const selected = productShelf?.find(p => p.symbol === tradeForm.selectedProduct);
+      if (selected) {
+        setTradeForm(prev => ({
+          ...prev,
+          price: selected.market_price || '', // Pre-fill price from product shelf
+        }));
+      }
+    }
+  }, [tradeForm.selectedProduct, productShelf]);
+
 
   const showSnackbar = (message, severity) => {
     setSnackbarMessage(message);
@@ -216,6 +258,7 @@ function PortfolioDetail() {
     setCurrentTab(newValue);
   };
 
+  // Chat functionality - kept as is
   const handleSendMessage = async () => {
     if (!currentQuestion.trim()) return;
 
@@ -254,6 +297,102 @@ function PortfolioDetail() {
       setChatLoading(false);
     }
   };
+
+  // Add Trade functionality
+  const handleTradeFormChange = (e) => {
+    const { name, value } = e.target;
+    setTradeForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleProductSelectChange = (e) => {
+    const symbol = e.target.value;
+    setTradeForm(prev => ({
+      ...prev,
+      selectedProduct: symbol // Store the symbol
+    }));
+  };
+
+  const handleDateChange = (date) => {
+    setTradeForm(prev => ({
+      ...prev,
+      trade_date: date
+    }));
+  };
+
+  const handleAddTradeSubmit = async (e) => {
+    e.preventDefault();
+    setAddingTrade(true);
+
+    const selectedProductDetails = productShelf?.find(p => p.symbol === tradeForm.selectedProduct);
+
+    if (!selectedProductDetails) {
+      showSnackbar('Please select a valid product.', 'error');
+      setAddingTrade(false);
+      return;
+    }
+    if (!tradeForm.quantity || parseFloat(tradeForm.quantity) <= 0) {
+      showSnackbar('Quantity must be a positive number.', 'error');
+      setAddingTrade(false);
+      return;
+    }
+    if (!tradeForm.price || parseFloat(tradeForm.price) <= 0) {
+      showSnackbar('Price must be a positive number.', 'error');
+      setAddingTrade(false);
+      return;
+    }
+    if (!tradeForm.trade_date) {
+      showSnackbar('Please select a trade date.', 'error');
+      setAddingTrade(false);
+      return;
+    }
+
+    try {
+      const tradeData = {
+        symbol: selectedProductDetails.symbol,
+        quantity: parseFloat(tradeForm.quantity),
+        price: parseFloat(tradeForm.price),
+        trade_date: tradeForm.trade_date.format('YYYY-MM-DD'), // Format date for API
+        type: tradeForm.type,
+        isin: selectedProductDetails.isin,
+        sector: selectedProductDetails.sector,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/add-trade`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tradeData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      showSnackbar('Trade added successfully!', 'success');
+      // Clear form
+      setTradeForm({
+        selectedProduct: '',
+        quantity: '',
+        price: '',
+        trade_date: dayjs(),
+        type: 'BUY',
+      });
+      // Refetch portfolio data to update positions and trades tabs
+      refetchPortfolio();
+
+    } catch (error) {
+      console.error("Error adding trade:", error);
+      showSnackbar(`Failed to add trade: ${error.message}`, 'error');
+    } finally {
+      setAddingTrade(false);
+    }
+  };
+
 
   const renderData = (data, type) => {
     if (!data) {
@@ -412,8 +551,8 @@ function PortfolioDetail() {
     return <Typography>Invalid data type for rendering.</Typography>;
   };
 
-  const overallLoading = portfolioLoading || historicalReportsLoading;
-  const overallError = portfolioError || historicalReportsError;
+  const overallLoading = portfolioLoading || historicalReportsLoading || productShelfLoading;
+  const overallError = portfolioError || historicalReportsError || productShelfError;
 
   if (overallLoading) {
     return (
@@ -470,6 +609,7 @@ function PortfolioDetail() {
               <Tab label="Trades" value="trades" />
               <Tab label="Compliance Report" value="compliance_report_tab" />
               <Tab label="Historical Reports" value="historical_reports" />
+              <Tab label="Add Trade" value="add_trade" />
               <Tab label="Chat with AI" value="chat_rag" />
             </TabList>
           </Box>
@@ -616,6 +756,95 @@ function PortfolioDetail() {
               </>
             )}
           </TabPanel>
+
+          {/* New Tab for Add Trade Functionality */}
+          <TabPanel value="add_trade">
+            <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Add New Trade</Typography>
+            <form onSubmit={handleAddTradeSubmit}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, maxWidth: 600 }}>
+                <FormControl fullWidth variant="outlined" sx={{ gridColumn: 'span 2' }}>
+                  <InputLabel id="product-select-label">Select Product</InputLabel>
+                  <Select
+                    labelId="product-select-label"
+                    id="product-select"
+                    name="selectedProduct"
+                    value={tradeForm.selectedProduct}
+                    onChange={handleProductSelectChange}
+                    label="Select Product"
+                    disabled={productShelfLoading || productShelfError}
+                  >
+                    {productShelfLoading && <MenuItem disabled>Loading products...</MenuItem>}
+                    {productShelfError && <MenuItem disabled>Error loading products</MenuItem>}
+                    {productShelf && productShelf.map((product) => (
+                      <MenuItem key={product.symbol} value={product.symbol}>
+                        {product.symbol} - {product.name} ({product.isin})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {(productShelfLoading || productShelfError) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                      {productShelfLoading ? 'Loading available products...' : `Error: ${productShelfError.message}`}
+                    </Typography>
+                  )}
+                </FormControl>
+
+                <TextField
+                  label="Quantity"
+                  name="quantity"
+                  type="number"
+                  value={tradeForm.quantity}
+                  onChange={handleTradeFormChange}
+                  fullWidth
+                  required
+                  inputProps={{ min: 1 }}
+                />
+
+                <TextField
+                  label="Price"
+                  name="price"
+                  type="number"
+                  value={tradeForm.price}
+                  onChange={handleTradeFormChange}
+                  fullWidth
+                  required
+                  inputProps={{ step: "0.01", min: 0 }}
+                />
+
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    label="Trade Date"
+                    value={tradeForm.trade_date}
+                    onChange={handleDateChange}
+                    slotProps={{ textField: { fullWidth: true, required: true } }}
+                  />
+                </LocalizationProvider>
+
+                <FormControl component="fieldset" fullWidth sx={{ gridColumn: 'span 2', mt:1 }}>
+                  <Typography variant="subtitle1" component="legend">Trade Type</Typography>
+                  <RadioGroup
+                    row
+                    name="type"
+                    value={tradeForm.type}
+                    onChange={handleTradeFormChange}
+                  >
+                    <FormControlLabel value="BUY" control={<Radio />} label="BUY" />
+                    <FormControlLabel value="SELL" control={<Radio />} label="SELL" />
+                  </RadioGroup>
+                </FormControl>
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  endIcon={<SendIcon />}
+                  disabled={addingTrade || !tradeForm.selectedProduct || !tradeForm.quantity || !tradeForm.price || !tradeForm.trade_date}
+                  sx={{ mt: 2, gridColumn: 'span 2' }}
+                >
+                  {addingTrade ? <CircularProgress size={24} color="inherit" /> : 'Add Trade'}
+                </Button>
+              </Box>
+            </form>
+          </TabPanel>
+
 
           <TabPanel value="chat_rag">
             <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Chat with AI Assistant about this Portfolio</Typography>
