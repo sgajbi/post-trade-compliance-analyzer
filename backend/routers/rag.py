@@ -1,25 +1,30 @@
-# routers/rag.py
+# backend/routers/rag.py
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel # Import BaseModel for request body validation
 from rag_service import query_portfolio
 
-router = APIRouter()
-
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG) 
+router = APIRouter()
+logger.debug("routers/rag.py: APIRouter initialized and ready for route registration.")
+
 
 # Define a Pydantic model for the request body
 class ChatRequest(BaseModel):
     question: str
     chat_history: list = [] # Optional, defaults to empty list
 
+logger.debug("routers/rag.py: Registering /ask/{client_id}/{portfolio_id} POST endpoint.")
 @router.post("/ask/{client_id}/{portfolio_id}")
-async def ask_question(client_id: str, portfolio_id: str, request: ChatRequest): # Use the Pydantic model
+async def ask_question(client_id: str, portfolio_id: str, request: ChatRequest):
     """
     Answers a question about a specific portfolio using the RAG service, identified by client_id and portfolio_id,
     and supports conversation history for contextual answers.
     """
+    print(f"DEBUG: Entering ask_question for {client_id}/{portfolio_id} with question: {request.question}")
     logger.info(f"Received question for portfolio {client_id}/{portfolio_id}: '{request.question}'")
+
     if not client_id or not portfolio_id:
         raise HTTPException(status_code=400, detail="Client ID and Portfolio ID must be provided.")
     if not request.question:

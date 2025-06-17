@@ -20,13 +20,16 @@ import {
   List,
   ListItem,
   Divider,
-  Accordion, 
-  AccordionSummary, 
-  AccordionDetails 
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  TextField, // Import TextField for chat input
+  IconButton, // Import IconButton for send button
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'; 
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MuiAlert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import SendIcon from '@mui/icons-material/Send'; // Import SendIcon
 import TabContext from '@mui/lab/TabContext';
 import TabList from '@mui/lab/TabList';
 import TabPanel from '@mui/lab/TabPanel';
@@ -45,11 +48,16 @@ function PortfolioDetail() {
   const [error, setError] = useState(null);
   const [currentTab, setCurrentTab] = useState('summary');
 
-  const [historicalReports, setHistoricalReports] = useState([]); 
+  const [historicalReports, setHistoricalReports] = useState([]);
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('info');
+
+  // New state for chat functionality
+  const [chatHistory, setChatHistory] = useState([]); // Stores messages: [{role: 'user'|'assistant', content: '...'}]
+  const [currentQuestion, setCurrentQuestion] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
 
   const showSnackbar = (message, severity) => {
     setSnackbarMessage(message);
@@ -110,6 +118,55 @@ function PortfolioDetail() {
     setCurrentTab(newValue);
   };
 
+  const handleSendMessage = async () => {
+    if (!currentQuestion.trim()) return;
+
+    const newUserMessage = { role: 'user', content: currentQuestion };
+    // Optimistically add user message to history
+    // We update the state immediately to show the user their message
+    setChatHistory(prevHistory => [...prevHistory, newUserMessage]); 
+    setCurrentQuestion(''); // Clear input
+
+    setChatLoading(true);
+    try {
+      // THIS IS THE CRITICAL LINE FOR URL CONSTRUCTION
+      const requestUrl = `${API_BASE_URL}/rag/ask/${clientId}/${portfolioId}`;
+      const requestBody = {
+        question: newUserMessage.content,
+        chat_history: chatHistory // Send the history *before* adding the current user message to it
+                                  // The backend expects the history of past turns.
+      };
+
+      // Removed temporary console.log statements from previous debugging
+      // console.log("Sending request to URL:", requestUrl);
+      // console.log("Request body:", requestBody);
+
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setChatHistory(prevHistory => [...prevHistory, { role: 'assistant', content: data.answer }]);
+    } catch (error) {
+      console.error("Error sending message to RAG service:", error);
+      showSnackbar(`Error: ${error.message}`, 'error');
+      // If there's an error, you might want to remove the optimistically added user message
+      // or show an error state for that message. For simplicity, we add an error message.
+      setChatHistory(prevHistory => [...prevHistory.slice(0, prevHistory.length - 1), { role: 'assistant', content: `Error: Could not get a response. ${error.message}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const renderData = (data, type) => {
     if (!data) {
       return <Typography>No data available.</Typography>;
@@ -161,7 +218,7 @@ function PortfolioDetail() {
             </TableHead>
             <TableBody>
               {data.map((row, index) => (
-                <TableRow key={index}>
+                <TableRow key={index}> {/* Added key here */}
                   {headers.map((header) => (
                     <TableCell key={header}>
                       {header.includes('date') && row[header] ? new Date(row[header]).toLocaleDateString() : row[header]}
@@ -203,7 +260,7 @@ function PortfolioDetail() {
               <Typography variant="subtitle2">Details:</Typography>
               <List dense>
                 {data.raw_policy_violations.map((violation, idx) => (
-                  <ListItem key={idx} sx={{ py: 0.5 }}>
+                  <ListItem key={idx}> {/* Added key here */}
                     <Typography variant="body2">{violation}</Typography>
                   </ListItem>
                 ))}
@@ -223,7 +280,7 @@ function PortfolioDetail() {
               </Typography>
               <List dense sx={{ ml: 2 }}>
                 {data.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, idx) => (
-                  <ListItem key={idx} sx={{ py: 0.5 }}>
+                  <ListItem key={idx}> {/* Added key here */}
                     <Typography variant="body2">{driftSummary.trim()}</Typography>
                   </ListItem>
                 ))}
@@ -249,7 +306,7 @@ function PortfolioDetail() {
                   </TableHead>
                   <TableBody>
                     {data.raw_risk_drifts.map((drift, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={idx}> {/* Added key here */}
                         <TableCell>{drift.sector}</TableCell>
                         <TableCell>{drift.actual?.toFixed(4)}</TableCell>
                         <TableCell>{drift.model?.toFixed(4)}</TableCell>
@@ -295,7 +352,7 @@ function PortfolioDetail() {
           No portfolio data found for {clientId}/{portfolioId}.
           <Button onClick={() => navigate('/')} sx={{ ml: 2 }}>Go Back Home</Button>
         </Alert>
-      </Box> 
+      </Box>
     );
   }
 
@@ -323,6 +380,7 @@ function PortfolioDetail() {
               <Tab label="Trades" value="trades" />
               <Tab label="Compliance Report" value="compliance_report_tab" />
               <Tab label="Historical Reports" value="historical_reports" />
+              <Tab label="Chat with AI" value="chat_rag" /> {/* New Tab */}
             </TabList>
           </Box>
 
@@ -345,13 +403,12 @@ function PortfolioDetail() {
             {renderData(portfolio.compliance_report, 'compliance_report_display')}
           </TabPanel>
 
-          {/* IMPROVED TabPanel for Historical Reports with Collapsible Sections */}
           <TabPanel value="historical_reports">
             <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Historical Compliance Reports</Typography>
             {historicalReports.length > 0 ? (
               <Box>
                 {historicalReports.map((report, index) => (
-                  <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', borderRadius: '8px' }}>
+                  <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', borderRadius: '8px' }}> {/* Added key here */}
                     <Typography variant="subtitle1" gutterBottom>
                       Report Date: {new Date(report.uploaded_at || report.date).toLocaleString()}
                     </Typography>
@@ -366,16 +423,16 @@ function PortfolioDetail() {
                         ) : (
                           <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No policy violations detected.</Typography>
                         )}
-                        
+
                         {report.compliance_report.raw_policy_violations && report.compliance_report.raw_policy_violations.length > 0 && (
                           <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
                             <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}pvh-content`} id={`panel${index}pvh-header`}>
                               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Policy Violations ({report.compliance_report.raw_policy_violations.length})</Typography>
-                            </AccordionSummary> {/* MISSING CLOSING TAG ADDED HERE */}
+                            </AccordionSummary>
                             <AccordionDetails>
                               <List dense sx={{ ml: 1 }}>
                                 {report.compliance_report.raw_policy_violations.map((violation, vIdx) => (
-                                  <ListItem key={vIdx} sx={{ py: 0 }}>
+                                  <ListItem key={vIdx} sx={{ py: 0 }}> {/* Added key here */}
                                     <Typography variant="body2" color="text.secondary">- {violation}</Typography>
                                   </ListItem>
                                 ))}
@@ -390,7 +447,7 @@ function PortfolioDetail() {
                         {report.compliance_report.risk_drifts_summary ? (
                           <List dense sx={{ ml: 1 }}>
                             {report.compliance_report.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, dIdx) => (
-                              <ListItem key={dIdx} sx={{ py: 0 }}>
+                              <ListItem key={dIdx} sx={{ py: 0 }}> {/* Added key here */}
                                 <Typography variant="body2" color="text.secondary">- {driftSummary.trim()}</Typography>
                               </ListItem>
                             ))}
@@ -398,12 +455,12 @@ function PortfolioDetail() {
                         ) : (
                           <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>No significant risk drifts identified.</Typography>
                         )}
-                        
+
                         {report.compliance_report.raw_risk_drifts && report.compliance_report.raw_risk_drifts.length > 0 && (
                           <Accordion elevation={0} sx={{ mt: 1, '&.MuiAccordion-root:before': { display: 'none' }, border: '1px solid #eee' }}>
                             <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`panel${index}rdh-content`} id={`panel${index}rdh-header`}>
                               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Show Raw Risk Drifts ({report.compliance_report.raw_risk_drifts.length})</Typography>
-                            </AccordionSummary> {/* MISSING CLOSING TAG ADDED HERE */}
+                            </AccordionSummary>
                             <AccordionDetails>
                               <TableContainer component={Paper} elevation={0} sx={{ mt: 1, maxHeight: 150, overflowY: 'auto' }}>
                                 <Table size="small">
@@ -418,7 +475,7 @@ function PortfolioDetail() {
                                   </TableHead>
                                   <TableBody>
                                     {report.compliance_report.raw_risk_drifts.map((drift, dIdx) => (
-                                      <TableRow key={dIdx}>
+                                      <TableRow key={dIdx}> {/* Added key here */}
                                         <TableCell>{drift.sector}</TableCell>
                                         <TableCell>{drift.actual?.toFixed(4)}</TableCell>
                                         <TableCell>{drift.model?.toFixed(4)}</TableCell>
@@ -445,6 +502,76 @@ function PortfolioDetail() {
             ) : (
               <Typography>No historical reports available for this portfolio.</Typography>
             )}
+          </TabPanel>
+
+          {/* New TabPanel for Chat RAG */}
+          <TabPanel value="chat_rag">
+            <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Chat with AI Assistant about this Portfolio</Typography>
+            <Box
+              sx={{
+                height: '50vh', // Fixed height for chat history
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
+                p: 2,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                mb: 2,
+              }}
+            >
+              {chatHistory.length === 0 ? (
+                <Typography color="text.secondary">Start a conversation by asking a question!</Typography>
+              ) : (
+                chatHistory.map((msg, index) => (
+                  <Box
+                    key={index} // Added key here for chat messages
+                    sx={{
+                      display: 'flex',
+                      justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                    }}
+                  >
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1.5,
+                        maxWidth: '70%',
+                        borderRadius: '15px',
+                        backgroundColor: msg.role === 'user' ? 'primary.light' : 'grey.200',
+                        color: msg.role === 'user' ? 'white' : 'text.primary',
+                      }}
+                    >
+                      <Typography variant="body2">{msg.content}</Typography>
+                    </Paper>
+                  </Box>
+                ))
+              )}
+              {chatLoading && (
+                 <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                   <CircularProgress size={20} />
+                   <Typography variant="body2" sx={{ ml: 1, fontStyle: 'italic', color: 'text.secondary' }}>AI is typing...</Typography>
+                 </Box>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                placeholder="Ask a question about this portfolio..."
+                value={currentQuestion}
+                onChange={(e) => setCurrentQuestion(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !chatLoading) {
+                    handleSendMessage();
+                  }
+                }}
+                disabled={chatLoading}
+                sx={{ mr: 1 }}
+              />
+              <IconButton color="primary" onClick={handleSendMessage} disabled={chatLoading}>
+                <SendIcon />
+              </IconButton>
+            </Box>
           </TabPanel>
         </TabContext>
       </Box>

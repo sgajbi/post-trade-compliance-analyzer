@@ -19,7 +19,7 @@ from db.mongo import portfolio_collection # Import portfolio_collection
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s" # CHANGE THIS LINE
 )
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ async def shutdown_event():
 # Include routers
 app.include_router(static_data.router)
 app.include_router(portfolio.router)
-app.include_router(rag.router)
+app.include_router(rag.router, prefix="/rag")
 
 
 @app.get("/")
