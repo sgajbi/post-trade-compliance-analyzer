@@ -20,12 +20,13 @@ import {
   Input // Import Input for file handling
 } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
+import { API_BASE_URL } from '../../utils/constants'; // Import the centralized API_BASE_URL
 
 const SnackbarAlert = React.forwardRef(function SnackbarAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
-const API_BASE_URL = 'http://127.0.0.1:8000'; // Ensure this matches your FastAPI backend URL
+// const API_BASE_URL = 'http://127.0.0.1:8000'; // Removed: Now imported from constants.js
 
 function Home() {
   const [portfolios, setPortfolios] = useState([]);
@@ -56,7 +57,7 @@ function Home() {
   const fetchPortfolios = async () => {
     try {
       setLoading(true);
-      setError(null);
+      setError(null); // Clear previous errors
       const response = await fetch(`${API_BASE_URL}/portfolios`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -65,7 +66,7 @@ function Home() {
       setPortfolios(data);
     } catch (e) {
       console.error("Failed to fetch portfolios:", e);
-      setError("Failed to load portfolios. Please ensure the backend is running.");
+      setError(e.message || "Failed to load portfolios. Please ensure the backend is running."); // Set specific error message
       showSnackbar(e.message || "Failed to load portfolios.", "error");
     } finally {
       setLoading(false);
