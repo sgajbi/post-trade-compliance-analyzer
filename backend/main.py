@@ -11,7 +11,8 @@ from routers import rag
 import chromadb
 from chromadb.utils import embedding_functions
 from sentence_transformers import SentenceTransformer
-from rag_service import set_rag_components # We will modify rag_service to get settings
+from rag_service import set_rag_components, set_openai_client # Import set_openai_client
+from openai import OpenAI # Import OpenAI
 from db.mongo import portfolio_collection
 from core.config import settings # Import the settings object
 
@@ -60,9 +61,22 @@ async def startup_event():
         set_rag_components(chroma_client, ef, collection)
         logger.info("RAG components passed to rag_service.")
 
+        # New: Initialize and set the OpenAI client
+        openai_api_key = settings.OPENAI_API_KEY
+        if not openai_api_key:
+            logger.error("OPENAI_API_KEY environment variable not set in settings. Cannot initialize OpenAI client.")
+            # Depending on your desired behavior, you might want to raise an exception here
+            # or continue with a warning if OpenAI is not strictly required for all paths.
+            # For now, we'll let rag_service's get_openai_client handle the missing key error if accessed.
+            pass
+        else:
+            openai_client = OpenAI(api_key=openai_api_key)
+            set_openai_client(openai_client)
+            logger.info("OpenAI client initialized and passed to rag_service.")
+
     except Exception as e:
         logger.error(
-            f"Failed to initialize RAG components during startup: {e}", exc_info=True
+            f"Failed to initialize RAG components or OpenAI client during startup: {e}", exc_info=True
         )
         raise
 
