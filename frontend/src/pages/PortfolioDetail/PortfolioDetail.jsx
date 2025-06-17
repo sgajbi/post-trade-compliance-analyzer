@@ -1,5 +1,5 @@
 // frontend/src/pages/PortfolioDetail/PortfolioDetail.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react'; // useEffect is no longer needed directly for data fetching
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -23,42 +23,50 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  TextField, // Import TextField for chat input
-  IconButton, // Import IconButton for send button
+  TextField,
+  IconButton,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MuiAlert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import SendIcon from '@mui/icons-material/Send'; // Import SendIcon
+import SendIcon from '@mui/icons-material/Send';
 import TabContext from '@mui/lab/TabContext';
 import TabList from '@mui/lab/TabList';
 import TabPanel from '@mui/lab/TabPanel';
 import { API_BASE_URL } from '../../utils/constants'; // Import the centralized API_BASE_URL
+import useFetch from '../../hooks/useFetch'; // Import the custom useFetch hook
 
 const SnackbarAlert = React.forwardRef(function SnackbarAlert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
-// const API_BASE_URL = 'http://127.0.0.1:8000'; // Removed: Now imported from constants.js
-
 function PortfolioDetail() {
   const { clientId, portfolioId } = useParams();
   const navigate = useNavigate();
-  const [portfolio, setPortfolio] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+
   const [currentTab, setCurrentTab] = useState('summary');
-
-  const [historicalReports, setHistoricalReports] = useState([]);
-
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('info');
 
   // New state for chat functionality
-  const [chatHistory, setChatHistory] = useState([]); // Stores messages: [{role: 'user'|'assistant', content: '...'}]
+  const [chatHistory, setChatHistory] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+
+  // Use the useFetch hook for portfolio details
+  const {
+    data: portfolio,
+    loading: portfolioLoading,
+    error: portfolioError
+  } = useFetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/detail`);
+
+  // Use another useFetch hook for historical reports
+  const {
+    data: historicalReports,
+    loading: historicalReportsLoading,
+    error: historicalReportsError
+  } = useFetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/history`);
 
   const showSnackbar = (message, severity) => {
     setSnackbarMessage(message);
@@ -73,48 +81,6 @@ function PortfolioDetail() {
     setSnackbarOpen(false);
   };
 
-  useEffect(() => {
-    const fetchPortfolioDetails = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/detail`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setPortfolio(data);
-      } catch (error) {
-        setError(error);
-        console.error("Error fetching portfolio details:", error);
-        showSnackbar(`Error fetching portfolio details: ${error.message}`, 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPortfolioDetails();
-  }, [clientId, portfolioId]);
-
-  useEffect(() => {
-    const fetchHistoricalReports = async () => {
-      if (!clientId || !portfolioId) return;
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/portfolio/${clientId}/${portfolioId}/history`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setHistoricalReports(data);
-      } catch (error) {
-        console.error("Error fetching historical reports:", error);
-        showSnackbar(`Error fetching historical reports: ${error.message}`, 'error');
-      }
-    };
-
-    fetchHistoricalReports();
-  }, [clientId, portfolioId]);
-
-
   const handleChangeTab = (event, newValue) => {
     setCurrentTab(newValue);
   };
@@ -123,24 +89,16 @@ function PortfolioDetail() {
     if (!currentQuestion.trim()) return;
 
     const newUserMessage = { role: 'user', content: currentQuestion };
-    // Optimistically add user message to history
-    // We update the state immediately to show the user their message
     setChatHistory(prevHistory => [...prevHistory, newUserMessage]);
     setCurrentQuestion(''); // Clear input
 
     setChatLoading(true);
     try {
-      // THIS IS THE CRITICAL LINE FOR URL CONSTRUCTION
       const requestUrl = `${API_BASE_URL}/rag/ask/${clientId}/${portfolioId}`;
       const requestBody = {
         question: newUserMessage.content,
-        chat_history: chatHistory // Send the history *before* adding the current user message to it
-                                  // The backend expects the history of past turns.
+        chat_history: chatHistory
       };
-
-      // Removed temporary console.log statements from previous debugging
-      // console.log("Sending request to URL:", requestUrl);
-      // console.log("Request body:", requestBody);
 
       const response = await fetch(requestUrl, {
         method: 'POST',
@@ -160,8 +118,6 @@ function PortfolioDetail() {
     } catch (error) {
       console.error("Error sending message to RAG service:", error);
       showSnackbar(`Error: ${error.message}`, 'error');
-      // If there's an error, you might want to remove the optimistically added user message
-      // or show an error state for that message. For simplicity, we add an error message.
       setChatHistory(prevHistory => [...prevHistory.slice(0, prevHistory.length - 1), { role: 'assistant', content: `Error: Could not get a response. ${error.message}` }]);
     } finally {
       setChatLoading(false);
@@ -219,7 +175,7 @@ function PortfolioDetail() {
             </TableHead>
             <TableBody>
               {data.map((row, index) => (
-                <TableRow key={index}> {/* Added key here */}
+                <TableRow key={index}>
                   {headers.map((header) => (
                     <TableCell key={header}>
                       {header.includes('date') && row[header] ? new Date(row[header]).toLocaleDateString() : row[header]}
@@ -244,7 +200,6 @@ function PortfolioDetail() {
           </Typography>
           <Divider sx={{ mb: 2 }} />
 
-          {/* Policy Violations */}
           <Typography variant="h6" component="h4" gutterBottom>
             Policy Violations
           </Typography>
@@ -261,7 +216,7 @@ function PortfolioDetail() {
               <Typography variant="subtitle2">Details:</Typography>
               <List dense>
                 {data.raw_policy_violations.map((violation, idx) => (
-                  <ListItem key={idx}> {/* Added key here */}
+                  <ListItem key={idx}>
                     <Typography variant="body2">{violation}</Typography>
                   </ListItem>
                 ))}
@@ -270,7 +225,6 @@ function PortfolioDetail() {
           )}
           <Divider sx={{ my: 2 }} />
 
-          {/* Risk Drifts - IMPROVED RENDERING */}
           <Typography variant="h6" component="h4" gutterBottom>
             Risk Drifts
           </Typography>
@@ -281,7 +235,7 @@ function PortfolioDetail() {
               </Typography>
               <List dense sx={{ ml: 2 }}>
                 {data.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, idx) => (
-                  <ListItem key={idx}> {/* Added key here */}
+                  <ListItem key={idx}>
                     <Typography variant="body2">{driftSummary.trim()}</Typography>
                   </ListItem>
                 ))}
@@ -307,7 +261,7 @@ function PortfolioDetail() {
                   </TableHead>
                   <TableBody>
                     {data.raw_risk_drifts.map((drift, idx) => (
-                      <TableRow key={idx}> {/* Added key here */}
+                      <TableRow key={idx}>
                         <TableCell>{drift.sector}</TableCell>
                         <TableCell>{drift.actual?.toFixed(4)}</TableCell>
                         <TableCell>{drift.model?.toFixed(4)}</TableCell>
@@ -327,19 +281,24 @@ function PortfolioDetail() {
     return <Typography>Invalid data type for rendering.</Typography>;
   };
 
-  if (loading) {
+  // Combine loading and error states for main display
+  const overallLoading = portfolioLoading || historicalReportsLoading;
+  const overallError = portfolioError || historicalReportsError;
+
+  if (overallLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Loading portfolio details...</Typography>
       </Box>
     );
   }
 
-  if (error) {
+  if (overallError) {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="error">
-          Error: {error.message}. Please try again or check if the portfolio exists.
+          Error: {overallError.message}. Please try again or check if the portfolio exists.
           <Button onClick={() => navigate('/')} sx={{ ml: 2 }}>Go Back Home</Button>
         </Alert>
       </Box>
@@ -381,7 +340,7 @@ function PortfolioDetail() {
               <Tab label="Trades" value="trades" />
               <Tab label="Compliance Report" value="compliance_report_tab" />
               <Tab label="Historical Reports" value="historical_reports" />
-              <Tab label="Chat with AI" value="chat_rag" /> {/* New Tab */}
+              <Tab label="Chat with AI" value="chat_rag" />
             </TabList>
           </Box>
 
@@ -406,16 +365,29 @@ function PortfolioDetail() {
 
           <TabPanel value="historical_reports">
             <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Historical Compliance Reports</Typography>
-            {historicalReports.length > 0 ? (
+            {historicalReportsLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <CircularProgress size={20} />
+                <Typography sx={{ ml: 1 }}>Loading historical reports...</Typography>
+              </Box>
+            )}
+            {historicalReportsError && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                Error fetching historical reports: {historicalReportsError.message}
+              </Alert>
+            )}
+            {!historicalReportsLoading && !historicalReportsError && (!historicalReports || historicalReports.length === 0) && (
+              <Typography>No historical reports available for this portfolio.</Typography>
+            )}
+            {!historicalReportsLoading && !historicalReportsError && historicalReports && historicalReports.length > 0 && (
               <Box>
                 {historicalReports.map((report, index) => (
-                  <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', borderRadius: '8px' }}> {/* Added key here */}
+                  <Paper key={index} sx={{ p: 2, mb: 2, border: '1px solid #e0e0e0', borderRadius: '8px' }}>
                     <Typography variant="subtitle1" gutterBottom>
                       Report Date: {new Date(report.uploaded_at || report.date).toLocaleString()}
                     </Typography>
                     {report.compliance_report ? (
                       <Box sx={{ ml: 2, mt: 1 }}>
-                        {/* Policy Violations for Historical */}
                         <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Policy Violations:</Typography>
                         {report.compliance_report.policy_violations_summary ? (
                           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', ml: 1 }}>
@@ -433,7 +405,7 @@ function PortfolioDetail() {
                             <AccordionDetails>
                               <List dense sx={{ ml: 1 }}>
                                 {report.compliance_report.raw_policy_violations.map((violation, vIdx) => (
-                                  <ListItem key={vIdx} sx={{ py: 0 }}> {/* Added key here */}
+                                  <ListItem key={vIdx} sx={{ py: 0 }}>
                                     <Typography variant="body2" color="text.secondary">- {violation}</Typography>
                                   </ListItem>
                                 ))}
@@ -443,12 +415,11 @@ function PortfolioDetail() {
                         )}
                         <Divider sx={{ my: 1 }} />
 
-                        {/* Risk Drifts for Historical */}
                         <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 2 }}>Risk Drifts:</Typography>
                         {report.compliance_report.risk_drifts_summary ? (
                           <List dense sx={{ ml: 1 }}>
                             {report.compliance_report.risk_drifts_summary.split(';').filter(s => s.trim() !== '').map((driftSummary, dIdx) => (
-                              <ListItem key={dIdx} sx={{ py: 0 }}> {/* Added key here */}
+                              <ListItem key={dIdx} sx={{ py: 0 }}>
                                 <Typography variant="body2" color="text.secondary">- {driftSummary.trim()}</Typography>
                               </ListItem>
                             ))}
@@ -476,7 +447,7 @@ function PortfolioDetail() {
                                   </TableHead>
                                   <TableBody>
                                     {report.compliance_report.raw_risk_drifts.map((drift, dIdx) => (
-                                      <TableRow key={dIdx}> {/* Added key here */}
+                                      <TableRow key={dIdx}>
                                         <TableCell>{drift.sector}</TableCell>
                                         <TableCell>{drift.actual?.toFixed(4)}</TableCell>
                                         <TableCell>{drift.model?.toFixed(4)}</TableCell>
@@ -490,7 +461,6 @@ function PortfolioDetail() {
                             </AccordionDetails>
                           </Accordion>
                         )}
-
                       </Box>
                     ) : (
                       <Typography variant="body2" color="error" sx={{ ml: 2 }}>
@@ -500,17 +470,14 @@ function PortfolioDetail() {
                   </Paper>
                 ))}
               </Box>
-            ) : (
-              <Typography>No historical reports available for this portfolio.</Typography>
             )}
           </TabPanel>
 
-          {/* New TabPanel for Chat RAG */}
           <TabPanel value="chat_rag">
             <Typography variant="h6" component="h2" sx={{ mb: 2 }}>Chat with AI Assistant about this Portfolio</Typography>
             <Box
               sx={{
-                height: '50vh', // Fixed height for chat history
+                height: '50vh',
                 border: '1px solid #e0e0e0',
                 borderRadius: '8px',
                 p: 2,
@@ -526,7 +493,7 @@ function PortfolioDetail() {
               ) : (
                 chatHistory.map((msg, index) => (
                   <Box
-                    key={index} // Added key here for chat messages
+                    key={index}
                     sx={{
                       display: 'flex',
                       justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
