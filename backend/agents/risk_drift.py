@@ -1,4 +1,8 @@
-
+"""
+This Python code defines a class RiskDriftAgent that analyzes sector allocation drifts 
+in a portfolio by comparing the actual sector weights with predefined model allocations, 
+and flags significant deviations (drifts) that exceed a configured threshold.
+"""
 import logging
 from agents.config import MODEL_ALLOCATIONS, DRIFT_THRESHOLD
 
