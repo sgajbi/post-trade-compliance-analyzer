@@ -1,7 +1,8 @@
+# backend/main.py
 import logging
-import json # Import json for file operations
-import os   # Import os for path operations
-from datetime import datetime # Import datetime for timestamps
+import json
+import os
+from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import static_data
@@ -10,27 +11,24 @@ from routers import rag
 import chromadb
 from chromadb.utils import embedding_functions
 from sentence_transformers import SentenceTransformer
-from rag_service import (
-    set_rag_components,
-    CHROMA_DB_PATH,
-    COLLECTION_NAME,
-)
-from db.mongo import portfolio_collection # Import portfolio_collection
+from rag_service import set_rag_components # We will modify rag_service to get settings
+from db.mongo import portfolio_collection
+from core.config import settings # Import the settings object
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s" # CHANGE THIS LINE
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(title=settings.APP_NAME) # Use APP_NAME from settings
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.CORS_ALLOW_ORIGINS,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOW_METHODS,
+    allow_headers=settings.CORS_ALLOW_HEADERS,
 )
 
 
@@ -39,23 +37,23 @@ app.add_middleware(
 async def startup_event():
     logger.info("Application startup: Initializing RAG components...")
     try:
-        # Initialize ChromaDB PersistentClient
-        chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-        logger.info(f"Initialized ChromaDB PersistentClient at {CHROMA_DB_PATH}")
+        # Initialize ChromaDB PersistentClient using settings
+        chroma_client = chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
+        logger.info(f"Initialized ChromaDB PersistentClient at {settings.CHROMA_DB_PATH}")
 
-        # Initialize the SentenceTransformer model for embeddings
-        embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-        logger.info(f"Loaded SentenceTransformer model 'all-MiniLM-L6-v2' and created embedding function.")
+        # Initialize the SentenceTransformer model for embeddings using settings
+        embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME)
+        logger.info(f"Loaded SentenceTransformer model '{settings.EMBEDDING_MODEL_NAME}' and created embedding function.")
 
-        ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+        ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=settings.EMBEDDING_MODEL_NAME)
 
-        # Get or create the collection for portfolio analysis
+        # Get or create the collection for portfolio analysis using settings
         collection = chroma_client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            embedding_function=ef,  # Use the wrapped embedding function
+            name=settings.CHROMA_COLLECTION_NAME,
+            embedding_function=ef,
         )
         logger.info(
-            f"Successfully got or created ChromaDB collection: {COLLECTION_NAME}"
+            f"Successfully got or created ChromaDB collection: {settings.CHROMA_COLLECTION_NAME}"
         )
 
         # Set the global RAG components in rag_service
@@ -104,11 +102,11 @@ async def startup_event():
                     new_portfolio_doc = {
                         "client_id": client_id,
                         "portfolio_id": portfolio_id,
-                        "date": datetime.now().isoformat(), # Current date for creation
-                        "uploaded_at": datetime.now().isoformat(), # Timestamp of creation
-                        "positions": [], # Initially empty
-                        "trades": [],    # Initially empty
-                        "analysis": { # Placeholder analysis as there's no data yet
+                        "date": datetime.now().isoformat(),
+                        "uploaded_at": datetime.now().isoformat(),
+                        "positions": [],
+                        "trades": [],
+                        "analysis": {
                             "policy_violations": ["No policy data available for analysis yet."],
                             "risk_drifts": ["No risk data available for analysis yet."]
                         }
